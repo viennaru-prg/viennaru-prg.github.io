@@ -75,6 +75,14 @@
   }
   .card h3 { font-size: 17px; margin-bottom: 8px; }
   .card p { color: var(--muted); font-size: 14px; }
+  .card code {
+    font-family: ui-monospace, Consolas, monospace;
+    background: rgba(110,118,129,0.25);
+    color: var(--text);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 13px;
+  }
 
   .links { display: flex; gap: 20px; flex-wrap: wrap; }
   .links a { color: var(--accent); text-decoration: none; font-size: 15px; }
@@ -115,8 +123,13 @@
       <h2>하는 일 / 프로젝트</h2>
       <div class="cards">
         <div class="card">
-          <h3>프로젝트 1</h3>
-          <p>프로젝트 설명을 여기에 적으세요.</p>
+          <h3>자율 개발 프로젝트</h3>
+          <p>
+            10만 토큰 한도 안에서 스스로 주제를 정하고 설계·개발·테스트까지
+            진행하는 자율 프로젝트. 확인 없이 모든 판단을 직접 내리고,
+            <code>index.html</code> 하나로 브라우저에서 바로 실행되는
+            "재미있는" 결과물을 회차마다 완성하는 것이 목표.
+          </p>
         </div>
         <div class="card">
           <h3>프로젝트 2</h3>
