@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>내 홈페이지</title>
+<meta name="description" content="GitHub Pages로 만든 개인 홈페이지" />
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --border: #30363d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    background:
+      radial-gradient(circle at 80% 20%, rgba(88,166,255,0.15), transparent 50%);
+  }
+  .badge {
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: clamp(36px, 7vw, 60px); line-height: 1.15; letter-spacing: -1px; }
+  h1 .grad {
+    background: linear-gradient(90deg, #58a6ff, #a371f7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .lead { color: var(--muted); font-size: 18px; margin-top: 20px; max-width: 540px; }
+
+  .cta { margin-top: 36px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 22px;
+    border-radius: 10px;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.primary { background: var(--accent); color: #0d1117; }
+  .btn.ghost { border: 1px solid var(--border); color: var(--text); }
+
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 24px; margin-bottom: 24px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 16px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+  }
+  .card h3 { font-size: 17px; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 14px; }
+
+  .links { display: flex; gap: 20px; flex-wrap: wrap; }
+  .links a { color: var(--accent); text-decoration: none; font-size: 15px; }
+  .links a:hover { text-decoration: underline; }
+
+  footer { padding: 40px 0; color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="wrap">
+      <span class="badge">● 온라인</span>
+      <h1>안녕하세요,<br /><span class="grad">여기는 내 공간입니다.</span></h1>
+      <p class="lead">
+        이 페이지는 GitHub Pages 위에 올라간 정적 웹사이트입니다.
+        아래 내용을 자유롭게 고쳐서 나만의 홈페이지로 만들어 보세요.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="#about">소개 보기</a>
+        <a class="btn ghost" href="#contact">연락하기</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="about">
+    <div class="wrap">
+      <h2>소개</h2>
+      <p style="color:var(--muted)">
+        여기에 자기소개를 적으세요. 무슨 일을 하는지, 무엇에 관심이 있는지,
+        이 사이트로 무엇을 보여주고 싶은지 자유롭게 작성하면 됩니다.
+      </p>
+    </div>
+  </section>
+
+  <section id="work">
+    <div class="wrap">
+      <h2>하는 일 / 프로젝트</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>프로젝트 1</h3>
+          <p>프로젝트 설명을 여기에 적으세요.</p>
+        </div>
+        <div class="card">
+          <h3>프로젝트 2</h3>
+          <p>프로젝트 설명을 여기에 적으세요.</p>
+        </div>
+        <div class="card">
+          <h3>프로젝트 3</h3>
+          <p>프로젝트 설명을 여기에 적으세요.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="wrap">
+      <h2>연락처</h2>
+      <div class="links">
+        <a href="mailto:jiseop0426@gmail.com">이메일</a>
+        <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
+        <a href="#">기타 링크</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    © <span id="year"></span> · GitHub Pages로 제작
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
