@@ -4,90 +4,100 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>내 홈페이지</title>
-<meta name="description" content="GitHub Pages로 만든 개인 홈페이지" />
+<meta name="description" content="GitHub Pages로 만든 개인 홈페이지 — 자율 개발 프로젝트 갤러리" />
 <style>
   :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --accent: #58a6ff;
-    --border: #30363d;
+    --bg: #0d1117; --panel: #161b22; --text: #e6edf3;
+    --muted: #8b949e; --accent: #58a6ff; --border: #30363d;
+    --good: #3fb950; --gold: #e3b341;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.7;
+    background: var(--bg); color: var(--text); line-height: 1.7;
     -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
 
   header {
-    min-height: 70vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    background:
-      radial-gradient(circle at 80% 20%, rgba(88,166,255,0.15), transparent 50%);
+    min-height: 60vh; display: flex; flex-direction: column;
+    justify-content: center; align-items: flex-start;
+    background: radial-gradient(circle at 80% 20%, rgba(88,166,255,0.15), transparent 50%);
   }
   .badge {
-    font-size: 13px;
-    color: var(--accent);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 6px 14px;
-    margin-bottom: 24px;
+    font-size: 13px; color: var(--accent); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 14px; margin-bottom: 24px;
   }
-  h1 { font-size: clamp(36px, 7vw, 60px); line-height: 1.15; letter-spacing: -1px; }
+  h1 { font-size: clamp(34px, 7vw, 58px); line-height: 1.15; letter-spacing: -1px; }
   h1 .grad {
     background: linear-gradient(90deg, #58a6ff, #a371f7);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .lead { color: var(--muted); font-size: 18px; margin-top: 20px; max-width: 540px; }
-
-  .cta { margin-top: 36px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .lead { color: var(--muted); font-size: 18px; margin-top: 20px; max-width: 560px; }
+  .cta { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; }
   .btn {
-    text-decoration: none;
-    font-size: 15px;
-    font-weight: 600;
-    padding: 12px 22px;
-    border-radius: 10px;
-    transition: transform .12s ease, opacity .12s ease;
+    text-decoration: none; font-size: 15px; font-weight: 600;
+    padding: 12px 22px; border-radius: 10px;
+    transition: transform .12s ease; cursor: pointer; border: none;
   }
   .btn:hover { transform: translateY(-2px); }
   .btn.primary { background: var(--accent); color: #0d1117; }
-  .btn.ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn.ghost { border: 1px solid var(--border); color: var(--text); background: transparent; }
 
-  section { padding: 64px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: 24px; margin-bottom: 24px; }
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 24px; margin-bottom: 8px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 16px; }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 22px;
+  .proj {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px; margin-bottom: 18px;
   }
-  .card h3 { font-size: 17px; margin-bottom: 8px; }
-  .card p { color: var(--muted); font-size: 14px; }
-  .card code {
-    font-family: ui-monospace, Consolas, monospace;
-    background: rgba(110,118,129,0.25);
+  .proj a.play { text-decoration: none; color: inherit; display: block; }
+  .proj h3 { font-size: 19px; margin-bottom: 6px; }
+  .proj .desc { color: var(--muted); font-size: 14px; }
+  .proj .go { color: var(--accent); font-size: 13px; margin-top: 8px; display: inline-block; }
+
+  .review { margin-top: 18px; border-top: 1px dashed var(--border); padding-top: 16px; }
+  .review .q { font-size: 14px; color: var(--text); margin-bottom: 10px; font-weight: 600; }
+  .stars { display: flex; gap: 4px; margin-bottom: 10px; font-size: 24px; cursor: pointer; }
+  .stars span { color: #444c56; transition: color .1s; }
+  .stars span.on, .stars span.hover { color: var(--gold); }
+  .stars.ro { cursor: default; font-size: 18px; }
+  textarea {
+    width: 100%; min-height: 80px; resize: vertical; background: #0d1117;
+    color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font: inherit; font-size: 14px;
+  }
+  textarea:focus { outline: 1px solid var(--accent); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .mini {
+    font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+    cursor: pointer; border: 1px solid var(--border); background: transparent;
     color: var(--text);
-    padding: 1px 6px;
-    border-radius: 5px;
-    font-size: 13px;
   }
+  .mini.primary { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+  .mini:disabled { opacity: .4; cursor: not-allowed; }
+  .done {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--good);
+    font-size: 13px; font-weight: 700; margin-bottom: 10px;
+  }
+  .saved-text {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 14px; white-space: pre-wrap;
+    margin: 8px 0;
+  }
+  .hist { margin-top: 12px; }
+  .hist summary { color: var(--muted); font-size: 13px; cursor: pointer; }
+  .hist .item {
+    border-left: 2px solid var(--border); padding: 6px 0 6px 12px;
+    margin-top: 10px; font-size: 13px; color: var(--muted);
+  }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
 
   .links { display: flex; gap: 20px; flex-wrap: wrap; }
   .links a { color: var(--accent); text-decoration: none; font-size: 15px; }
   .links a:hover { text-decoration: underline; }
-
+  #about p { color: var(--muted); }
   footer { padding: 40px 0; color: var(--muted); font-size: 13px; text-align: center; }
 </style>
 </head>
@@ -95,14 +105,14 @@
 
   <header>
     <div class="wrap">
-      <span class="badge">● 온라인</span>
+      <span class="badge">● 자율 개발 갤러리</span>
       <h1>안녕하세요,<br /><span class="grad">여기는 내 공간입니다.</span></h1>
       <p class="lead">
-        이 페이지는 GitHub Pages 위에 올라간 정적 웹사이트입니다.
-        아래 내용을 자유롭게 고쳐서 나만의 홈페이지로 만들어 보세요.
+        CLAUDE.md 규칙 안에서 매 회차 만들어지는 결과물을 모아둔 갤러리입니다.
+        각 프로젝트를 해보고 아래에 후기를 남기면, 다음 프로젝트에 반영됩니다.
       </p>
       <div class="cta">
-        <a class="btn primary" href="#about">소개 보기</a>
+        <a class="btn primary" href="#work">프로젝트 보기</a>
         <a class="btn ghost" href="#contact">연락하기</a>
       </div>
     </div>
@@ -111,33 +121,18 @@
   <section id="about">
     <div class="wrap">
       <h2>소개</h2>
-      <p style="color:var(--muted)">
-        여기에 자기소개를 적으세요. 무슨 일을 하는지, 무엇에 관심이 있는지,
-        이 사이트로 무엇을 보여주고 싶은지 자유롭게 작성하면 됩니다.
+      <p>
+        브라우저에서 바로 실행되는 작은 프로젝트를 회차마다 만들어 쌓아갑니다.
+        남겨주신 후기가 다음 회차의 방향을 정합니다.
       </p>
     </div>
   </section>
 
   <section id="work">
     <div class="wrap">
-      <h2>하는 일 / 프로젝트</h2>
-      <div class="cards">
-        <a class="card" href="projects/p1/index.html" style="text-decoration:none;color:inherit;display:block">
-          <h3>1. ORBIT 🎮</h3>
-          <p>
-            원버튼 반응 게임. 탭으로 회전 방향을 반전해 파란 점을 먹고
-            빨간 호를 피하는 1분 몰입형. 클릭해서 바로 플레이 →
-          </p>
-        </a>
-        <div class="card">
-          <h3>프로젝트 2</h3>
-          <p>프로젝트 설명을 여기에 적으세요.</p>
-        </div>
-        <div class="card">
-          <h3>프로젝트 3</h3>
-          <p>프로젝트 설명을 여기에 적으세요.</p>
-        </div>
-      </div>
+      <h2>프로젝트</h2>
+      <div class="sub">해본 뒤 별점과 후기를 남겨주세요. 저장하면 "작성 완료"로 표시되고, 언제든 다시 보거나 수정할 수 있습니다.</div>
+      <div id="projectList"></div>
     </div>
   </section>
 
@@ -146,18 +141,196 @@
       <h2>연락처</h2>
       <div class="links">
         <a href="mailto:jiseop0426@gmail.com">이메일</a>
-        <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
-        <a href="#">기타 링크</a>
+        <a href="https://github.com/viennaru-prg" target="_blank" rel="noopener">GitHub</a>
       </div>
     </div>
   </section>
 
-  <footer>
-    © <span id="year"></span> · GitHub Pages로 제작
-  </footer>
+  <footer>© <span id="year"></span> · 자율 개발 프로젝트 · GitHub Pages</footer>
 
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
+<script>
+"use strict";
+(function () {
+  // ---- project registry (자율 루프가 새 회차마다 여기에 추가) ----
+  var PROJECTS = [
+    {
+      id: "p1", n: 1, title: "ORBIT", emoji: "🎮",
+      url: "projects/p1/index.html",
+      desc: "원버튼 반응 게임. 탭으로 회전 방향을 반전해 파란 점을 먹고 빨간 호를 피하는 1분 몰입형."
+    }
+  ];
+
+  var STORE_KEY = "orbit_reviews_v1";
+
+  function loadAll() {
+    try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveAll(obj) {
+    try { window.localStorage.setItem(STORE_KEY, JSON.stringify(obj)); } catch (e) {}
+  }
+  function getReview(id) { return loadAll()[id] || null; }
+  function putReview(id, rating, text) {
+    var all = loadAll();
+    var prev = all[id];
+    var hist = (prev && prev.history) ? prev.history.slice() : [];
+    if (prev && (prev.rating !== rating || prev.text !== text)) {
+      hist.push({ rating: prev.rating, text: prev.text, savedAt: prev.savedAt });
+    }
+    all[id] = {
+      rating: rating, text: text,
+      savedAt: new Date().toISOString().slice(0, 10),
+      history: hist
+    };
+    saveAll(all);
+    return all[id];
+  }
+  function buildClaudeMessage(proj, rev) {
+    return "[후기] 프로젝트 " + proj.n + " " + proj.title +
+      " · 별점 " + rev.rating + "/5 · " + rev.savedAt + "\n" + rev.text;
+  }
+  // expose pure logic for headless tests
+  window.__HOME__ = {
+    getReview: getReview, putReview: putReview,
+    buildClaudeMessage: buildClaudeMessage,
+    _setStore: function (k) { STORE_KEY = k; }
+  };
+
+  function el(tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function starsHtml(n, ro) {
+    var s = '<div class="stars' + (ro ? ' ro' : '') + '">';
+    for (var i = 1; i <= 5; i++)
+      s += '<span data-v="' + i + '"' + (i <= n ? ' class="on"' : '') + '>★</span>';
+    return s + '</div>';
+  }
+
+  function renderProject(proj) {
+    var box = el("div", "proj");
+
+    var a = el("a", "play");
+    a.href = proj.url;
+    a.innerHTML = "<h3>" + proj.n + ". " + proj.title + " " + proj.emoji +
+      "</h3><div class='desc'>" + proj.desc +
+      "</div><span class='go'>클릭해서 바로 실행 →</span>";
+    box.appendChild(a);
+
+    var rv = el("div", "review");
+    box.appendChild(rv);
+    paintReview(rv, proj);
+    return box;
+  }
+
+  function paintReview(rv, proj) {
+    rv.innerHTML = "";
+    var saved = getReview(proj.id);
+
+    if (saved && !rv._editing) {
+      rv.appendChild(el("div", "done", "✅ 작성 완료 · " + saved.savedAt));
+      rv.insertAdjacentHTML("beforeend", starsHtml(saved.rating, true));
+      rv.appendChild(el("div", "saved-text", escapeHtml(saved.text)));
+
+      var row = el("div", "row");
+      var editBtn = el("button", "mini", "수정");
+      var sendBtn = el("button", "mini primary", "📋 Claude에게 전달");
+      row.appendChild(editBtn);
+      row.appendChild(sendBtn);
+      rv.appendChild(row);
+      rv.appendChild(el("div", "hint",
+        "‘Claude에게 전달’을 누르면 후기가 복사됩니다. 채팅창에 붙여넣기(Ctrl+V)만 하면 다음 프로젝트에 반영됩니다."));
+
+      if (saved.history && saved.history.length) {
+        var d = el("details", "hist");
+        d.innerHTML = "<summary>이전에 이렇게 쓰셨어요 (" +
+          saved.history.length + "개)</summary>";
+        saved.history.slice().reverse().forEach(function (h) {
+          d.appendChild(el("div", "item",
+            "★".repeat(h.rating) + " · " + (h.savedAt || "") + "<br>" +
+            escapeHtml(h.text)));
+        });
+        rv.appendChild(d);
+      }
+
+      editBtn.onclick = function () { rv._editing = true; paintReview(rv, proj); };
+      sendBtn.onclick = function () {
+        var msg = buildClaudeMessage(proj, saved);
+        copyText(msg, function (ok) {
+          sendBtn.textContent = ok ? "복사됨 ✓ 채팅에 붙여넣기" : "복사 실패 — 길게 눌러 복사";
+          if (!ok) showFallback(rv, msg);
+          setTimeout(function () { sendBtn.textContent = "📋 Claude에게 전달"; }, 4000);
+        });
+      };
+      return;
+    }
+
+    // form (new or editing)
+    rv._editing = false;
+    rv.appendChild(el("div", "q", "이 프로젝트, 어땠어요?"));
+    rv.insertAdjacentHTML("beforeend", starsHtml(saved ? saved.rating : 0, false));
+    var ta = el("textarea");
+    ta.placeholder = "좋았던 점 / 아쉬운 점 / 다음엔 이런 게 있으면 좋겠어요…";
+    ta.value = saved ? saved.text : "";
+    rv.appendChild(ta);
+
+    var row = el("div", "row");
+    var saveBtn = el("button", "mini primary", "저장");
+    row.appendChild(saveBtn);
+    if (saved) {
+      var cancel = el("button", "mini", "취소");
+      row.appendChild(cancel);
+      cancel.onclick = function () { paintReview(rv, proj); };
+    }
+    rv.appendChild(row);
+
+    var picked = saved ? saved.rating : 0;
+    var starWrap = rv.querySelector(".stars");
+    var spans = starWrap.querySelectorAll("span");
+    function refresh() {
+      for (var i = 0; i < spans.length; i++)
+        spans[i].className = (i < picked) ? "on" : "";
+    }
+    spans.forEach(function (sp, idx) {
+      sp.onmouseenter = function () {
+        for (var i = 0; i < spans.length; i++)
+          spans[i].className = (i <= idx) ? "hover" : "";
+      };
+      sp.onclick = function () { picked = idx + 1; refresh(); };
+    });
+    starWrap.onmouseleave = refresh;
+
+    saveBtn.onclick = function () {
+      var text = ta.value.trim();
+      if (!picked && !text) { ta.focus(); return; }
+      putReview(proj.id, picked || 0, text);
+      paintReview(rv, proj);
+    };
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c];
+    });
+  }
+  function copyText(t, cb) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { cb(true); },
+        function () { cb(false); });
+    } else { cb(false); }
+  }
+  function showFallback(rv, msg) {
+    var ta = el("textarea");
+    ta.value = msg; ta.style.marginTop = "8px";
+    rv.appendChild(ta); ta.select();
+  }
+
+  var list = document.getElementById("projectList");
+  PROJECTS.forEach(function (p) { list.appendChild(renderProject(p)); });
+  document.getElementById("year").textContent = new Date().getFullYear();
+})();
+</script>
 </body>
 </html>
