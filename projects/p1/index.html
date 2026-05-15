@@ -6,36 +6,32 @@
 <title>ORBIT — 프로젝트 1</title>
 <style>
   html, body {
-    margin: 0; height: 100%; overflow: hidden;
-    background: #0d1117;
+    margin: 0; height: 100%; overflow: hidden; background: #0d1117;
     font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
+    -webkit-tap-highlight-color: transparent; user-select: none;
   }
   #c { display: block; touch-action: none; }
-  .hud {
-    position: fixed; top: 18px; left: 0; right: 0;
-    text-align: center; color: #e6edf3; pointer-events: none;
+  .layer {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; color: #e6edf3;
+    text-align: center; padding: 24px; box-sizing: border-box;
   }
-  .hud .score { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+  .hud { justify-content: flex-start; padding-top: 26px; }
+  .hud .score { font-size: 46px; font-weight: 800; letter-spacing: -1px; }
   .hud .best { font-size: 13px; color: #8b949e; margin-top: 2px; }
-  .overlay {
-    position: fixed; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 14px;
-    color: #e6edf3; text-align: center; padding: 24px;
-  }
-  .overlay h1 {
+  h1 {
     font-size: clamp(40px, 12vw, 88px); margin: 0; letter-spacing: 4px;
     background: linear-gradient(90deg, #58a6ff, #a371f7);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .overlay p { color: #8b949e; margin: 0; font-size: 16px; }
-  .overlay .big { font-size: 30px; color: #e6edf3; font-weight: 700; }
+  .layer p { color: #8b949e; margin: 0; font-size: 16px; }
+  .big { font-size: 30px; color: #e6edf3; font-weight: 700; }
   .tap { margin-top: 10px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
   @keyframes blink { 50% { opacity: .35; } }
   .home {
     position: fixed; left: 16px; bottom: 14px; font-size: 13px;
-    color: #8b949e; text-decoration: none; z-index: 5;
+    color: #8b949e; text-decoration: none; z-index: 9; pointer-events: auto;
   }
   .home:hover { color: #58a6ff; }
   .hidden { display: none !important; }
@@ -44,199 +40,238 @@
 <body>
   <canvas id="c"></canvas>
 
-  <div class="hud hidden" id="hud">
+  <div class="layer hud hidden" id="hud">
     <div class="score" id="score">0</div>
     <div class="best" id="bestLine"></div>
   </div>
 
-  <div class="overlay" id="startScreen">
+  <div class="layer" id="startScreen">
     <h1>ORBIT</h1>
-    <p>탭/클릭/스페이스 → 회전 방향 반전</p>
+    <p>탭 / 클릭 / 스페이스 → 회전 방향 반전</p>
     <p>파란 점은 먹고, 빨간 호는 피하세요</p>
     <div class="tap">화면을 탭하면 시작</div>
   </div>
 
-  <div class="overlay hidden" id="overScreen">
+  <div class="layer hidden" id="overScreen">
     <h1>GAME OVER</h1>
     <div class="big" id="finalScore">0</div>
     <p id="bestMsg"></p>
-    <div class="tap">탭해서 다시 도전</div>
+    <div class="tap" id="retryHint">잠시 후 다시 도전할 수 있어요</div>
   </div>
 
   <a class="home" href="../../index.html">← 홈으로</a>
 
 <script>
-(() => {
-  const canvas = document.getElementById("c");
-  const ctx = canvas.getContext("2d");
-  const scoreEl = document.getElementById("score");
-  const bestLine = document.getElementById("bestLine");
-  const hud = document.getElementById("hud");
-  const startScreen = document.getElementById("startScreen");
-  const overScreen = document.getElementById("overScreen");
-  const finalScore = document.getElementById("finalScore");
-  const bestMsg = document.getElementById("bestMsg");
+"use strict";
+(function () {
+  var canvas = document.getElementById("c");
+  var ctx = canvas.getContext("2d");
+  var scoreEl = document.getElementById("score");
+  var bestLine = document.getElementById("bestLine");
+  var hud = document.getElementById("hud");
+  var startScreen = document.getElementById("startScreen");
+  var overScreen = document.getElementById("overScreen");
+  var finalScore = document.getElementById("finalScore");
+  var bestMsg = document.getElementById("bestMsg");
+  var retryHint = document.getElementById("retryHint");
 
-  let W, H, cx, cy, R;
+  var TAU = Math.PI * 2;
+  var W, H, cx, cy, R;
+
   function resize() {
-    W = canvas.width = innerWidth;
-    H = canvas.height = innerHeight;
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
     cx = W / 2; cy = H / 2;
     R = Math.min(W, H) * 0.30;
   }
-  addEventListener("resize", resize);
+  window.addEventListener("resize", resize);
   resize();
 
-  const TAU = Math.PI * 2;
-  let best = +(localStorage.getItem("orbit_best") || 0);
+  var best = 0;
+  try { best = parseInt(window.localStorage.getItem("orbit_best"), 10) || 0; } catch (e) {}
 
-  let state, angle, dir, speed, score, ball, dot, obstacles, particles, shake, hueShift;
-
-  function reset() {
-    state = "play";
-    angle = -Math.PI / 2;
-    dir = 1;
-    speed = 0.028;
-    score = 0;
-    obstacles = [];
-    particles = [];
-    shake = 0;
-    hueShift = 0;
-    spawnDot();
-    hud.classList.remove("hidden");
-    startScreen.classList.add("hidden");
-    overScreen.classList.add("hidden");
-    updateScore();
-  }
-
-  function spawnDot() {
-    // place dot at an angle away from the ball, not overlapping an obstacle
-    let a;
-    for (let i = 0; i < 30; i++) {
-      a = Math.random() * TAU;
-      let gap = Math.abs(angDiff(a, angle));
-      if (gap > 0.9 && !inAnyObstacle(a)) break;
-    }
-    dot = { a, pulse: 0 };
-  }
-
-  function maybeSpawnObstacle() {
-    // difficulty: more / wider arcs as score climbs
-    const count = obstacles.length;
-    const target = Math.min(1 + Math.floor(score / 6), 5);
-    if (count >= target) return;
-    let a;
-    for (let i = 0; i < 30; i++) {
-      a = Math.random() * TAU;
-      if (Math.abs(angDiff(a, angle)) > 1.1 &&
-          Math.abs(angDiff(a, dot.a)) > 0.6 && !inAnyObstacle(a)) break;
-    }
-    const half = 0.28 + Math.min(score, 30) * 0.004;
-    const rot = (Math.random() < 0.5 ? -1 : 1) * (0.002 + Math.random() * 0.006);
-    obstacles.push({ a, half, rot });
-  }
+  // --- game state ---
+  var G = {
+    screen: "start",      // start | playing | over
+    angle: -Math.PI / 2,
+    dir: 1,
+    speed: 0.028,
+    score: 0,
+    dotA: 0,
+    dotPulse: 0,
+    obstacles: [],
+    particles: [],
+    shake: 0,
+    overAt: 0
+  };
 
   function angDiff(a, b) {
-    let d = (a - b) % TAU;
+    var d = (a - b) % TAU;
     if (d > Math.PI) d -= TAU;
     if (d < -Math.PI) d += TAU;
     return d;
   }
-  function inAnyObstacle(a) {
-    return obstacles.some(o => Math.abs(angDiff(a, o.a)) < o.half + 0.15);
-  }
-
-  function flip() {
-    if (state === "play") { dir *= -1; addParticles(ballPos(), "#58a6ff", 6); }
-    else { reset(); }
+  function inAnyObstacle(a, pad) {
+    for (var i = 0; i < G.obstacles.length; i++) {
+      if (Math.abs(angDiff(a, G.obstacles[i].a)) < G.obstacles[i].half + pad) return true;
+    }
+    return false;
   }
   function ballPos() {
-    return { x: cx + Math.cos(angle) * R, y: cy + Math.sin(angle) * R };
+    return { x: cx + Math.cos(G.angle) * R, y: cy + Math.sin(G.angle) * R };
+  }
+
+  function spawnDot() {
+    var a = Math.random() * TAU;
+    for (var i = 0; i < 40; i++) {
+      a = Math.random() * TAU;
+      if (Math.abs(angDiff(a, G.angle)) > 0.9 && !inAnyObstacle(a, 0.15)) break;
+    }
+    G.dotA = a; G.dotPulse = 0;
+  }
+
+  function maybeSpawnObstacle() {
+    var target = Math.min(1 + Math.floor(G.score / 6), 5);
+    if (G.obstacles.length >= target) return;
+    var a = Math.random() * TAU;
+    for (var i = 0; i < 40; i++) {
+      a = Math.random() * TAU;
+      if (Math.abs(angDiff(a, G.angle)) > 1.1 &&
+          Math.abs(angDiff(a, G.dotA)) > 0.6 && !inAnyObstacle(a, 0.2)) break;
+    }
+    var half = 0.26 + Math.min(G.score, 30) * 0.004;
+    var rot = (Math.random() < 0.5 ? -1 : 1) * (0.002 + Math.random() * 0.005);
+    G.obstacles.push({ a: a, half: half, rot: rot });
   }
 
   function addParticles(p, color, n) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * TAU, sp = 1 + Math.random() * 4;
-      particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-                        life: 1, color });
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * TAU, sp = 1 + Math.random() * 4;
+      G.particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp, life: 1, color: color });
     }
   }
 
   function updateScore() {
-    scoreEl.textContent = score;
+    scoreEl.textContent = G.score;
     bestLine.textContent = best ? "BEST " + best : "";
   }
 
+  function startGame() {
+    G.screen = "playing";
+    G.angle = -Math.PI / 2;
+    G.dir = 1;
+    G.speed = 0.028;
+    G.score = 0;
+    G.obstacles = [];
+    G.particles = [];
+    G.shake = 0;
+    spawnDot();
+    updateScore();
+    hud.classList.remove("hidden");
+    startScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+  }
+
+  function flip() {
+    G.dir *= -1;
+    addParticles(ballPos(), "#58a6ff", 6);
+  }
+
   function gameOver() {
-    state = "over";
-    shake = 22;
+    G.screen = "over";
+    G.overAt = Date.now();
+    G.shake = 22;
     addParticles(ballPos(), "#ff5d5d", 40);
-    const newBest = score > best;
-    if (newBest) { best = score; localStorage.setItem("orbit_best", best); }
-    setTimeout(() => {
-      finalScore.textContent = score;
-      bestMsg.textContent = newBest ? "🎉 신기록!" : "BEST " + best;
+    var isNew = G.score > best;
+    if (isNew) {
+      best = G.score;
+      try { window.localStorage.setItem("orbit_best", String(best)); } catch (e) {}
+    }
+    setTimeout(function () {
+      if (G.screen !== "over") return;
+      finalScore.textContent = G.score;
+      bestMsg.textContent = isNew ? "🎉 신기록!" : "BEST " + best;
       hud.classList.add("hidden");
       overScreen.classList.remove("hidden");
     }, 650);
   }
 
-  function step() {
-    if (state === "play") {
-      angle = (angle + dir * speed + TAU) % TAU;
+  // single global input handler — routes by screen state
+  function handleInput() {
+    if (G.screen === "start") { startGame(); }
+    else if (G.screen === "playing") { flip(); }
+    else if (G.screen === "over") {
+      if (Date.now() - G.overAt > 700) startGame();
+    }
+  }
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains("home")) return;
+    e.preventDefault();
+    handleInput();
+  }, { passive: false });
+  window.addEventListener("keydown", function (e) {
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "Enter") {
+      e.preventDefault();
+      handleInput();
+    }
+  });
 
-      // obstacles rotate
-      for (const o of obstacles) o.a = (o.a + o.rot + TAU) % TAU;
-
-      // collect dot
-      dot.pulse += 0.15;
-      if (Math.abs(angDiff(angle, dot.a)) < 0.16) {
-        score++;
-        speed += 0.0016;
-        hueShift = (hueShift + 24) % 360;
+  function update() {
+    if (G.screen === "playing") {
+      G.angle = (G.angle + G.dir * G.speed + TAU) % TAU;
+      for (var i = 0; i < G.obstacles.length; i++) {
+        var o = G.obstacles[i];
+        o.a = (o.a + o.rot + TAU) % TAU;
+      }
+      G.dotPulse += 0.15;
+      if (Math.abs(angDiff(G.angle, G.dotA)) < 0.16) {
+        G.score++;
+        G.speed += 0.0016;
         addParticles(ballPos(), "#58a6ff", 18);
-        shake = Math.max(shake, 6);
+        G.shake = Math.max(G.shake, 6);
         updateScore();
         maybeSpawnObstacle();
         spawnDot();
       }
-
-      // hit obstacle
-      for (const o of obstacles) {
-        if (Math.abs(angDiff(angle, o.a)) < o.half) { gameOver(); break; }
+      for (var j = 0; j < G.obstacles.length; j++) {
+        if (Math.abs(angDiff(G.angle, G.obstacles[j].a)) < G.obstacles[j].half) {
+          gameOver();
+          break;
+        }
       }
     }
-
-    // particles
-    for (const p of particles) {
+    var kept = [];
+    for (var k = 0; k < G.particles.length; k++) {
+      var p = G.particles[k];
       p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life -= 0.025;
+      if (p.life > 0) kept.push(p);
     }
-    particles = particles.filter(p => p.life > 0);
-    if (shake > 0) shake *= 0.88;
+    G.particles = kept;
+    if (G.shake > 0.4) G.shake *= 0.88; else G.shake = 0;
   }
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    if (shake > 0.4)
-      ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+    if (G.shake > 0.4) {
+      ctx.translate((Math.random() - 0.5) * G.shake, (Math.random() - 0.5) * G.shake);
+    }
 
-    // orbit ring
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, TAU);
     ctx.strokeStyle = "rgba(139,148,158,0.25)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // center core
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, TAU);
-    ctx.fillStyle = `hsl(${210 + hueShift},90%,65%)`;
+    ctx.fillStyle = "#58a6ff";
     ctx.fill();
 
-    if (state !== "ready") {
-      // obstacles
-      for (const o of obstacles) {
+    if (G.screen === "playing" || G.screen === "over") {
+      for (var i = 0; i < G.obstacles.length; i++) {
+        var o = G.obstacles[i];
         ctx.beginPath();
         ctx.arc(cx, cy, R, o.a - o.half, o.a + o.half);
         ctx.strokeStyle = "#ff5d5d";
@@ -244,18 +279,16 @@
         ctx.lineCap = "round";
         ctx.stroke();
       }
-      // dot
-      const dx = cx + Math.cos(dot.a) * R, dy = cy + Math.sin(dot.a) * R;
-      const r = 9 + Math.sin(dot.pulse) * 3;
+      var dx = cx + Math.cos(G.dotA) * R, dy = cy + Math.sin(G.dotA) * R;
+      var rr = 9 + Math.sin(G.dotPulse) * 3;
       ctx.beginPath();
-      ctx.arc(dx, dy, r, 0, TAU);
+      ctx.arc(dx, dy, rr, 0, TAU);
       ctx.fillStyle = "#58a6ff";
       ctx.shadowColor = "#58a6ff"; ctx.shadowBlur = 18;
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // ball
-      const b = ballPos();
+      var b = ballPos();
       ctx.beginPath();
       ctx.arc(b.x, b.y, 12, 0, TAU);
       ctx.fillStyle = "#fff";
@@ -264,32 +297,27 @@
       ctx.shadowBlur = 0;
     }
 
-    // particles
-    for (const p of particles) {
-      ctx.globalAlpha = Math.max(p.life, 0);
+    for (var q = 0; q < G.particles.length; q++) {
+      var pt = G.particles[q];
+      ctx.globalAlpha = pt.life > 0 ? pt.life : 0;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4 * p.life + 1, 0, TAU);
-      ctx.fillStyle = p.color;
+      ctx.arc(pt.x, pt.y, 4 * pt.life + 1, 0, TAU);
+      ctx.fillStyle = pt.color;
       ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.restore();
   }
 
-  function loop() { step(); draw(); requestAnimationFrame(loop); }
+  function loop() {
+    update();
+    draw();
+    window.requestAnimationFrame(loop);
+  }
 
-  state = "ready";
-  // input
-  function onTap(e) { e.preventDefault(); flip(); }
-  canvas.addEventListener("pointerdown", onTap);
-  startScreen.addEventListener("pointerdown", (e) => { e.preventDefault(); reset(); });
-  overScreen.addEventListener("pointerdown", (e) => { e.preventDefault(); reset(); });
-  addEventListener("keydown", (e) => {
-    if (e.code === "Space" || e.code === "ArrowUp") {
-      e.preventDefault();
-      if (state === "play") flip(); else reset();
-    }
-  });
+  // expose for headless test harness only
+  window.__ORBIT__ = { G: G, update: update, handleInput: handleInput,
+    angDiff: angDiff, startGame: startGame };
 
   loop();
 })();
