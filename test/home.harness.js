@@ -79,6 +79,18 @@ check("Claude message has header",
 check("Claude message includes the text",
   msg.indexOf("수정함: 난이도 올리니 더 좋아요") > -1);
 
+// GitHub issue URL for "read from the site" loop
+const iu = H.buildIssueUrl(proj, H.getReview("p1"));
+check("issue url targets the repo",
+  iu.indexOf("https://github.com/viennaru-prg/viennaru-prg.github.io/issues/new") === 0);
+check("issue url has review label", iu.indexOf("labels=review") > -1);
+check("issue url encodes rating in title",
+  decodeURIComponent(iu).indexOf("별점 5/5") > -1);
+check("issue url body has machine tag",
+  decodeURIComponent(iu).indexOf("review project=p1 rating=5") > -1);
+check("issue url includes the written text",
+  decodeURIComponent(iu).indexOf("수정함: 난이도 올리니 더 좋아요") > -1);
+
 // persistence across reload (same store key)
 check("persisted to localStorage",
   store["test_reviews"] && store["test_reviews"].indexOf("수정함") > -1);

@@ -190,14 +190,25 @@
     saveAll(all);
     return all[id];
   }
+  var REPO = "viennaru-prg/viennaru-prg.github.io";
   function buildClaudeMessage(proj, rev) {
     return "[후기] 프로젝트 " + proj.n + " " + proj.title +
       " · 별점 " + rev.rating + "/5 · " + rev.savedAt + "\n" + rev.text;
+  }
+  function buildIssueUrl(proj, rev) {
+    var title = "[후기] 프로젝트 " + proj.n + " " + proj.title +
+      " · 별점 " + rev.rating + "/5";
+    var body = rev.text +
+      "\n\n---\n별점: " + rev.rating + "/5\n작성일: " + rev.savedAt +
+      "\n<!-- review project=" + proj.id + " rating=" + rev.rating + " -->";
+    return "https://github.com/" + REPO + "/issues/new?labels=review&title=" +
+      encodeURIComponent(title) + "&body=" + encodeURIComponent(body);
   }
   // expose pure logic for headless tests
   window.__HOME__ = {
     getReview: getReview, putReview: putReview,
     buildClaudeMessage: buildClaudeMessage,
+    buildIssueUrl: buildIssueUrl,
     _setStore: function (k) { STORE_KEY = k; }
   };
 
@@ -241,12 +252,15 @@
 
       var row = el("div", "row");
       var editBtn = el("button", "mini", "수정");
-      var sendBtn = el("button", "mini primary", "📋 Claude에게 전달");
+      var sendBtn = el("button", "mini primary", "📝 사이트에 후기 등록");
+      var copyBtn = el("button", "mini", "📋 텍스트 복사");
       row.appendChild(editBtn);
       row.appendChild(sendBtn);
+      row.appendChild(copyBtn);
       rv.appendChild(row);
       rv.appendChild(el("div", "hint",
-        "‘Claude에게 전달’을 누르면 후기가 복사됩니다. 채팅창에 붙여넣기(Ctrl+V)만 하면 다음 프로젝트에 반영됩니다."));
+        "‘사이트에 후기 등록’ → 내용이 채워진 GitHub 화면에서 초록 Submit 한 번이면 끝. " +
+        "그 후기는 공개로 남아 다음 프로젝트에 반영됩니다. (복사 → 채팅 붙여넣기도 가능)"));
 
       if (saved.history && saved.history.length) {
         var d = el("details", "hist");
@@ -262,11 +276,14 @@
 
       editBtn.onclick = function () { rv._editing = true; paintReview(rv, proj); };
       sendBtn.onclick = function () {
+        window.open(buildIssueUrl(proj, saved), "_blank", "noopener");
+      };
+      copyBtn.onclick = function () {
         var msg = buildClaudeMessage(proj, saved);
         copyText(msg, function (ok) {
-          sendBtn.textContent = ok ? "복사됨 ✓ 채팅에 붙여넣기" : "복사 실패 — 길게 눌러 복사";
+          copyBtn.textContent = ok ? "복사됨 ✓ 채팅에 붙여넣기" : "복사 실패";
           if (!ok) showFallback(rv, msg);
-          setTimeout(function () { sendBtn.textContent = "📋 Claude에게 전달"; }, 4000);
+          setTimeout(function () { copyBtn.textContent = "📋 텍스트 복사"; }, 4000);
         });
       };
       return;

@@ -116,10 +116,11 @@
 
 ## 피드백
 
-> **누적 원장: `feedback/ledger.md`** — 사용자가 홈페이지 후기란에 작성 후
-> "Claude에게 전달"로 복사해 채팅에 붙여넣으면, Claude가 원장에 누적한다.
-> **1단계(주제 선정) 전에 `feedback/ledger.md`를 반드시 읽고** 선호 패턴을
-> 반영해 점점 사용자 취향에 맞는 프로젝트를 만든다.
+> **후기 소스 = GitHub Issues `label:review` + `feedback/ledger.md`**
+> 사용자가 홈 후기란 작성 → "사이트에 후기 등록" → GitHub Submit.
+> **1단계(주제 선정) 전에 반드시** ① 저장소 이슈(label:review)를 WebFetch로
+> 확인하고 ② `feedback/ledger.md`를 읽어, 새 후기를 원장에 누적하고 선호
+> 패턴을 반영해 점점 사용자 취향에 맞는 프로젝트를 만든다.
 
 <!-- 사용자가 평가 후 직접 작성 -->
 

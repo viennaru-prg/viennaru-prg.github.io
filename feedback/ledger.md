@@ -1,8 +1,13 @@
 # 피드백 원장 (Claude가 누적 관리)
 
-사용자가 홈페이지 후기란에 작성 → "Claude에게 전달" 복사 → 채팅에 붙여넣음.
-Claude는 받은 후기를 아래에 시간순으로 누적하고, **다음 회차 1단계(주제 선정)
-전에 이 파일 전체를 읽어** 취향 패턴을 반영한다.
+**후기 1차 소스 = GitHub Issues (`label:review`)**
+사용자가 홈 후기란 작성 → "사이트에 후기 등록" → 내용이 채워진 GitHub
+이슈 등록 화면에서 Submit. (보조: "텍스트 복사" → 채팅 붙여넣기)
+
+Claude는 **매 회차 1단계 전에**
+`https://github.com/viennaru-prg/viennaru-prg.github.io/issues?q=label:review`
+를 WebFetch로 읽어 새 후기를 확인하고, 아래에 시간순으로 누적한 뒤
+취향 패턴을 반영한다. (채팅으로 받은 후기도 동일하게 누적)
 
 형식:
 ```
