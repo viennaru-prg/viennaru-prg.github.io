@@ -177,56 +177,95 @@
 
   function bossHits(stage) { return isBoss(stage) ? 3 : 1; }
 
-  // generate a deterministic stage; portal is placed on a REAL trajectory
-  // of a known launch -> stage is provably solvable (skill, no luck).
+  // coarse deterministic solver: does ANY aim win? (used to GUARANTEE every
+  // generated stage is completable by skill — the fairness invariant)
+  function findSolution(lvl) {
+    for (var ang = -1.4; ang <= 1.4; ang += 0.05)
+      for (var pw = PMIN; pw <= PMAX; pw += 0.3)
+        if (simulate(lvl, ang, pw, false).win) return true;
+    return false;
+  }
+  function directWins(lvl) {
+    var a = Math.atan2(lvl.portal.y - lvl.start.y,
+                       lvl.portal.x - lvl.start.x);
+    return simulate(lvl, a, (PMIN + PMAX) / 2, false).win;
+  }
+
+  // Constructive generation: blockers are placed ON the straight line so a
+  // naive shot FAILS (gravity must be used), then we VERIFY a solution
+  // exists and self-adjust until BOTH hold -> non-trivial AND fair.
   function genStage(stage) {
     var rnd = mulberry32(0x9E37 + stage * 2654435761);
     var realm = Math.floor((stage - 1) / 4);
     var boss = isBoss(stage), mini = isMini(stage);
-    var nWells = Math.min(1 + Math.floor((stage - 1) / 2), 6) + (boss ? 1 : 0);
-    var nHaz = Math.min(Math.floor((stage - 1) / 3), 5) + (boss ? 2 : mini ? 1 : 0);
-    var start = { x: 70, y: VH / 2 + (rnd() * 2 - 1) * 160 };
+    var nExtra = Math.min(Math.floor((stage - 1) / 2), 5) + (boss ? 1 : 0);
+    var nHaz = Math.min(1 + Math.floor((stage - 1) / 3), 5) +
+      (boss ? 2 : mini ? 1 : 0);
+    var start = { x: 72, y: VH / 2 + (rnd() * 2 - 1) * 150 };
+    var portR = Math.max(15, 34 - stage * 0.7) + (boss ? 2 : 0);
+    var portal = { x: VW * 0.62 + rnd() * (VW * 0.30),
+      y: 90 + rnd() * (VH - 180), r: portR };
     var lvl = { stage: stage, start: start, wells: [], hazards: [],
-      portal: null, portalR: Math.max(15, 34 - stage * 0.7) + (boss ? -4 : 0),
+      portal: portal, portalR: portR,
       par: Math.max(2, 6 - Math.floor(stage / 4)), boss: boss, mini: mini,
       hits: bossHits(stage), guardian: null, realm: realm };
-    var i;
-    for (i = 0; i < nWells; i++) {
-      lvl.wells.push({
-        x: 240 + rnd() * (VW - 420), y: 80 + rnd() * (VH - 160),
-        mass: 60 + rnd() * (90 + stage * 6), coreR: 16 + rnd() * 10
-      });
+
+    function onLine(t, perp) {                 // point along start->portal
+      return { x: start.x + (portal.x - start.x) * t -
+                 (portal.y - start.y) / VH * perp,
+               y: start.y + (portal.y - start.y) * t +
+                 (portal.x - start.x) / VW * perp };
+    }
+    // primary blocker right on the path -> straight shot can't just sail in
+    var bp = onLine(0.48 + rnd() * 0.12, (rnd() * 2 - 1) * 40);
+    var blocker = { x: bp.x, y: bp.y,
+      mass: 150 + stage * 14, coreR: 17 + rnd() * 8 };
+    lvl.wells.push(blocker);
+    var i, p;
+    for (i = 0; i < nExtra; i++) {
+      p = onLine(0.25 + rnd() * 0.6, (rnd() * 2 - 1) * 180);
+      lvl.wells.push({ x: Math.max(180, Math.min(VW - 80, p.x)),
+        y: Math.max(60, Math.min(VH - 60, p.y)),
+        mass: 70 + rnd() * (70 + stage * 6), coreR: 15 + rnd() * 9 });
     }
     for (i = 0; i < nHaz; i++) {
-      lvl.hazards.push({
-        x: 260 + rnd() * (VW - 440), y: 70 + rnd() * (VH - 140),
-        r: 16 + rnd() * 16
-      });
+      p = onLine(0.3 + rnd() * 0.5, (rnd() * 2 - 1) * 70);
+      lvl.hazards.push({ x: Math.max(160, Math.min(VW - 60, p.x)),
+        y: Math.max(50, Math.min(VH - 50, p.y)), r: 15 + rnd() * 15 });
     }
-    if (boss) {
-      lvl.guardian = { cx: VW * 0.72, cy: VH / 2, R: 120,
-        r: 24, omega: 0.013, base: rnd() * 6.28 };
+    if (boss) lvl.guardian = { cx: portal.x - 150, cy: portal.y,
+      R: 110, r: 22, omega: 0.012, base: rnd() * 6.28 };
+
+    // keep start & portal clear of cores/hazards
+    function clearAround(cx, cy, pad) {
+      for (var k = lvl.wells.length - 1; k >= 0; k--)
+        if (Math.hypot(cx - lvl.wells[k].x, cy - lvl.wells[k].y) <
+            lvl.wells[k].coreR + pad && lvl.wells[k] !== blocker)
+          lvl.wells.splice(k, 1);
+      for (k = lvl.hazards.length - 1; k >= 0; k--)
+        if (Math.hypot(cx - lvl.hazards[k].x, cy - lvl.hazards[k].y) <
+            lvl.hazards[k].r + pad) lvl.hazards.splice(k, 1);
     }
-    // find a known-safe launch; place portal on its path -> guaranteed solvable
-    var placed = false;
-    for (var tryI = 0; tryI < 220 && !placed; tryI++) {
-      var ang = (rnd() * 2 - 1) * 1.15;            // aim generally rightward
-      var pw = PMIN + rnd() * (PMAX - PMIN);
-      var path = simulate(lvl, ang, pw, true);
-      if (path.pts.length > 90) {
-        var idx = Math.min(path.pts.length - 1,
-          120 + Math.floor(rnd() * (path.pts.length - 120)));
-        var pt = path.pts[idx];
-        if (pt.x > 120 && pt.x < VW - 30 && pt.y > 30 && pt.y < VH - 30 &&
-            safeSpot(lvl, pt.x, pt.y, lvl.portalR + 6)) {
-          lvl.portal = { x: pt.x, y: pt.y, r: lvl.portalR };
-          placed = true;
-        }
+    clearAround(start.x, start.y, 70);
+    clearAround(portal.x, portal.y, portR + 26);
+
+    // VERIFY + self-adjust: prioritise solvable; among solvable, push
+    // non-trivial. Deterministic (no rng here) -> stable, testable.
+    for (var it = 0; it < 30; it++) {
+      var solvable = findSolution(lvl);
+      if (!solvable) {                          // too hard -> ease off
+        for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.86;
+        lvl.portal.r = Math.min(42, lvl.portal.r * 1.10);
+        continue;
       }
+      if (!directWins(lvl)) break;              // solvable AND non-trivial
+      blocker.mass *= 1.20;                     // trivial -> beef the blocker
+      lvl.portal.r = Math.max(15, lvl.portal.r * 0.97);
     }
-    if (!placed) {                                   // robust fallback
-      lvl.wells = []; lvl.hazards = []; lvl.guardian = null;
-      lvl.portal = { x: VW - 140, y: start.y, r: 34 };
+    if (!findSolution(lvl)) {                    // absolute last resort
+      lvl.wells = [blocker]; lvl.hazards = [];
+      lvl.portal.r = Math.max(28, portR);
+      if (!findSolution(lvl)) { lvl.wells = []; lvl.portal.r = 34; }
     }
     return lvl;
   }
@@ -301,7 +340,8 @@
     comet: null, parts: [], shotStars: 3,
     meta: { stars: 0, best: 0, asc: 0 }, startAsc: 0,
     shake: 0, flash: 0, overAt: 0, banner: "", bsub: "", bannerT: 0,
-    pendingUpg: null, extraShots: 0, powerStep: 1
+    pendingUpg: null, extraShots: 0, powerStep: 1,
+    tick: 0, _pvKey: "", _pv: null
   };
 
   function showBanner(a, b) { G.banner = a; G.bsub = b || ""; G.bannerT = 110; }
@@ -327,7 +367,8 @@
   function startGame() {
     G.meta = metaLoad(); G.startAsc = G.meta.asc;
     G.extraShots = Math.floor(G.startAsc);
-    G.previewLen = 60 + G.startAsc * 12;
+    // generous preview so it is genuine PLANNING, not blind guessing
+    G.previewLen = 600 + G.startAsc * 60;
     G.powerStep = 1;
     G.screen = "playing";
     G.score = 0; G.stars = 0; G.runStars = 0;
@@ -522,6 +563,7 @@
   });
 
   function update() {
+    G.tick++;                                  // free-running clock (telegraph)
     if (G.screen === "playing" && G.comet) {
       var lvl = G.level, cm = G.comet;
       for (var sub = 0; sub < 2; sub++) {       // 2 physics steps / frame
@@ -615,14 +657,18 @@
       for (i = 0; i < L.hazards.length; i++)
         drawCirc(sx(L.hazards[i].x), sy(L.hazards[i].y),
           L.hazards[i].r * VIEW.s, true);
-      // guardian
+      // guardian — telegraphed: orbit ring always shown, and it KEEPS
+      // moving before launch (free clock) so its timing is readable, not
+      // a blind first-try gamble.
       if (L.guardian) {
-        var st = G.comet ? G.comet.step : 0;
-        var ga = L.guardian.base + st * L.guardian.omega;
+        var gG = L.guardian;
+        ctx.strokeStyle = "rgba(227,179,65,0.30)"; ctx.lineWidth = 1.5;
+        drawCirc(sx(gG.cx), sy(gG.cy), gG.R * VIEW.s, false);
+        var st = G.comet ? G.comet.step : G.tick;
+        var ga = gG.base + st * gG.omega;
         ctx.fillStyle = "#e3b341";
-        drawCirc(sx(L.guardian.cx + Math.cos(ga) * L.guardian.R),
-          sy(L.guardian.cy + Math.sin(ga) * L.guardian.R),
-          L.guardian.r * VIEW.s, true);
+        drawCirc(sx(gG.cx + Math.cos(ga) * gG.R),
+          sy(gG.cy + Math.sin(ga) * gG.R), gG.r * VIEW.s, true);
       }
       // portal
       ctx.strokeStyle = "#39d353"; ctx.lineWidth = 3;
@@ -633,13 +679,22 @@
       ctx.fillStyle = "#fff";
       drawCirc(sx(L.start.x), sy(L.start.y), 7 * VIEW.s, true);
 
-      // aim preview (telegraph -> plan with skill, not guess)
+      // aim preview (telegraph -> plan with skill, not guess).
+      // full deterministic path, cached so we don't re-sim every frame.
       if (!G.comet && G.screen === "playing") {
-        var pv = simulate(L, G.angle, G.power, true);
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        var key = G.angle.toFixed(4) + "|" + G.power.toFixed(3) + "|" + G.stage;
+        if (key !== G._pvKey) {
+          G._pv = simulate(L, G.angle, G.power, true);
+          G._pvKey = key;
+        }
+        var pv = G._pv;
         var lim = Math.min(pv.pts.length, Math.floor(G.previewLen / 3));
-        for (i = 1; i < lim; i++)
+        for (i = 1; i < lim; i++) {
+          ctx.fillStyle = "rgba(255,255,255," +
+            (0.6 - 0.45 * (i / lim)) + ")";       // fades along the path
           drawCirc(sx(pv.pts[i].x), sy(pv.pts[i].y), 2, true);
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
         var ex = L.start.x + Math.cos(G.angle) * 34;
         var ey = L.start.y + Math.sin(G.angle) * 34;
         ctx.strokeStyle = rm.c; ctx.lineWidth = 3;

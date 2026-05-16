@@ -105,6 +105,25 @@ check("portal shrinks later", late.portalR < e.portalR);
 check("par tightens later", A.genStage(24).par <= A.genStage(1).par);
 check("portal radius floored", A.genStage(99).portalR >= 14);
 
+// ---- QUALITY: non-trivial levels (gravity must be used, not a gimme) ----
+function directShotWins(s) {
+  const L = A.genStage(s);
+  const dAng = Math.atan2(L.portal.y - L.start.y, L.portal.x - L.start.x);
+  return A.simulate(L, dAng, (C.PMIN + C.PMAX) / 2, false).win;
+}
+check("deep stage 12 isn't a trivial straight shot", !directShotWins(12));
+check("deep stage 18 isn't a trivial straight shot", !directShotWins(18));
+
+// ---- QUALITY: preview is generous enough to truly plan (not guess) ----
+A.metaSave({ stars: 0, best: 0, asc: 0 });
+A.startGame();
+check("aim preview length is generous (>=240)", A.G.previewLen >= 240);
+
+// ---- QUALITY: boss guardian is telegraphable (orbit + nonzero motion) ----
+const lb = A.genStage(6);
+check("boss has a moving guardian (readable timing)",
+  lb.guardian && lb.guardian.omega > 0 && lb.guardian.R > 0);
+
 // ---- meta progression (the system the user liked) ----
 check("ascFromStars 0 at 0", A.ascFromStars(0) === 0);
 check("ascFromStars grows", A.ascFromStars(500) > A.ascFromStars(20) &&
