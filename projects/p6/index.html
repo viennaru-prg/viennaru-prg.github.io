@@ -327,20 +327,32 @@
     var rnd = mulberry32(0x9E37 + stage * 2654435761 + (mods.salt || 0));
     var realm = Math.floor((stage - 1) / 4);
     var boss = isBoss(stage), mini = isMini(stage);
-    var extra = (mods.harder ? 1 : 0);
-    var nExtra = Math.min(Math.floor((stage - 1) / 2), 5) + (boss ? 1 : 0) + extra;
-    var nHaz = Math.min(1 + Math.floor((stage - 1) / 3), 5) +
-      (boss ? 2 : mini ? 1 : 0) + extra;
-    var nCp = Math.min(1 + Math.floor(stage / 5), 3);
-    var start = { x: 72, y: VH / 2 + (rnd() * 2 - 1) * 150 };
-    var portR = Math.max(15, 34 - stage * 0.7) + (boss ? 2 : 0);
-    var portal = { x: VW * 0.62 + rnd() * (VW * 0.30),
-      y: 90 + rnd() * (VH - 180), r: portR };
+    // difficulty TIERS — early stages must be approachable (tutorial-like),
+    // hard curve-arounds are deferred. (fix: stage 1 was walled in the middle)
+    var tier = stage <= 2 ? "intro" : stage <= 4 ? "early" : "full";
+    var extra = (mods.harder && tier === "full" ? 1 : 0);
+    var nExtra, nHaz, nCp;
+    if (tier === "intro") { nExtra = 1; nHaz = 0; nCp = 0; }
+    else if (tier === "early") {
+      nExtra = 1 + (boss ? 1 : 0); nHaz = 1; nCp = 0;
+    } else {
+      nExtra = Math.min(Math.floor((stage - 1) / 2), 5) + (boss ? 1 : 0) + extra;
+      nHaz = Math.min(1 + Math.floor((stage - 1) / 3), 5) +
+        (boss ? 2 : mini ? 1 : 0) + extra;
+      nCp = Math.min(1 + Math.floor((stage - 5) / 5), 3);
+    }
+    var start = { x: 72, y: VH / 2 + (rnd() * 2 - 1) * 140 };
+    var portBonus = tier === "intro" ? 16 : tier === "early" ? 7 : 0;
+    var portR = Math.max(15, 34 - stage * 0.7) + (boss ? 2 : 0) + portBonus;
+    var pxLo = tier === "intro" ? 0.52 : 0.60;
+    var pxRange = tier === "intro" ? 0.24 : 0.32;
+    var portal = { x: VW * pxLo + rnd() * (VW * pxRange),
+      y: 110 + rnd() * (VH - 220), r: portR };
     var lvl = { stage: stage, start: start, wells: [], hazards: [],
       checkpoints: [], worm: null, portal: portal, portalR: portR,
-      par: Math.max(2, 6 - Math.floor(stage / 4)), boss: boss, mini: mini,
-      hits: bossHits(stage), guardian: null, realm: realm,
-      starMul: mods.starMul || 1 };
+      par: tier === "intro" ? 6 : Math.max(2, 6 - Math.floor(stage / 4)),
+      boss: boss, mini: mini, hits: bossHits(stage), guardian: null,
+      realm: realm, starMul: mods.starMul || 1, tier: tier };
 
     function onLine(t, perp) {
       return { x: start.x + (portal.x - start.x) * t -
@@ -348,18 +360,32 @@
                y: start.y + (portal.y - start.y) * t +
                  (portal.x - start.x) / VW * perp };
     }
-    var bp = onLine(0.48 + rnd() * 0.12, (rnd() * 2 - 1) * 40);
-    var blocker = { x: bp.x, y: bp.y, mass: 150 + stage * 14,
-      coreR: 17 + rnd() * 8 };
-    lvl.wells.push(blocker);
+    var prim;
+    if (tier === "full") {                       // blocker ON the line
+      var bp = onLine(0.48 + rnd() * 0.12, (rnd() * 2 - 1) * 40);
+      prim = { x: bp.x, y: bp.y, mass: 150 + stage * 14,
+        coreR: 17 + rnd() * 8 };
+    } else {                                     // gentle well clearly OFF
+      var sgn = rnd() < 0.5 ? -1 : 1;            // the route, so it just
+      var sp = onLine(0.42 + rnd() * 0.16,        // bends the path a little
+        sgn * (tier === "intro" ? 205 : 150));
+      prim = { x: Math.max(180, Math.min(VW - 100, sp.x)),
+        y: Math.max(80, Math.min(VH - 80, sp.y)),
+        mass: tier === "intro" ? 65 : 110, coreR: 15 };
+    }
+    var blocker = prim;
+    lvl.wells.push(prim);
     var i, p;
     for (i = 0; i < nExtra; i++) {
-      p = onLine(0.22 + rnd() * 0.62, (rnd() * 2 - 1) * 185);
+      var perp = tier === "full" ? (rnd() * 2 - 1) * 185
+        : (rnd() < 0.5 ? -1 : 1) * (135 + rnd() * 95);   // clearly off-lane
+      p = onLine(0.24 + rnd() * 0.55, perp);
       var w = { x: Math.max(170, Math.min(VW - 80, p.x)),
         y: Math.max(56, Math.min(VH - 56, p.y)),
-        mass: 70 + rnd() * (70 + stage * 6), coreR: 14 + rnd() * 9 };
-      // moving planets from realm 3+ (telegraphed, deterministic)
-      if (realm >= 2 && rnd() < 0.5) {
+        mass: tier === "intro" ? 55 :
+          70 + rnd() * (60 + (tier === "full" ? stage * 6 : 20)),
+        coreR: 14 + rnd() * 8 };
+      if (tier === "full" && realm >= 2 && rnd() < 0.5) {
         w.orb = { cx: w.x, cy: w.y, R: 40 + rnd() * 70,
           om: (rnd() < 0.5 ? -1 : 1) * (0.006 + rnd() * 0.01),
           base: rnd() * 6.28 };
@@ -371,8 +397,7 @@
       lvl.hazards.push({ x: Math.max(150, Math.min(VW - 55, p.x)),
         y: Math.max(48, Math.min(VH - 48, p.y)), r: 15 + rnd() * 14 });
     }
-    // wormhole pair in the worm-nebula realm (idx 3) and some boss stages
-    if (realm === 3 || (boss && rnd() < 0.5)) {
+    if (tier === "full" && (realm === 3 || (boss && rnd() < 0.5))) {
       var wa = onLine(0.30, (rnd() * 2 - 1) * 120);
       var wb = onLine(0.78, (rnd() * 2 - 1) * 120);
       lvl.worm = { ax: wa.x, ay: wa.y, bx: wb.x, by: wb.y, r: 40 };
@@ -389,49 +414,81 @@
         if (Math.hypot(cx - lvl.hazards[k].x, cy - lvl.hazards[k].y)
             < lvl.hazards[k].r + pad) lvl.hazards.splice(k, 1);
     }
-    clearAround(start.x, start.y, 70);
+    clearAround(start.x, start.y, tier === "intro" ? 110 : 80);
     clearAround(portal.x, portal.y, portR + 26);
+    // intro/early: keep a CLEAR straight lane so "aim at the portal" works.
+    // (full tier intentionally keeps a blocker on the line.)
+    if (tier !== "full") {
+      var ax = start.x, ay = start.y, dlx = portal.x - ax, dly = portal.y - ay;
+      var dL2 = dlx * dlx + dly * dly || 1;
+      var distSeg = function (qx, qy) {
+        var tt = Math.max(0, Math.min(1,
+          ((qx - ax) * dlx + (qy - ay) * dly) / dL2));
+        return Math.hypot(qx - (ax + dlx * tt), qy - (ay + dly * tt));
+      };
+      for (var ck = lvl.wells.length - 1; ck >= 0; ck--)
+        if (distSeg(lvl.wells[ck].x, lvl.wells[ck].y)
+            < lvl.wells[ck].coreR + COMET_R + 16) lvl.wells.splice(ck, 1);
+      for (ck = lvl.hazards.length - 1; ck >= 0; ck--)
+        if (distSeg(lvl.hazards[ck].x, lvl.hazards[ck].y)
+            < lvl.hazards[ck].r + COMET_R + 16) lvl.hazards.splice(ck, 1);
+    }
 
-    // solve WITHOUT checkpoints, then place checkpoints ON the winning
-    // path -> the same aim collects them all then sinks: guaranteed solvable.
     function placeCheckpoints() {
       lvl.checkpoints = [];
       var sol = findSolution(lvl, true);
       if (!sol) return false;
-      var path = sol.r.pts;
-      if (path.length < nCp + 6) return true;     // solvable, no cps added
+      var pathp = sol.r.pts;
+      if (nCp <= 0 || pathp.length < nCp + 6) return true;
       var cps = [];
       for (var c = 1; c <= nCp; c++) {
-        var pp = path[Math.floor(path.length * c / (nCp + 1))];
+        var pp = pathp[Math.floor(pathp.length * c / (nCp + 1))];
         cps.push({ x: pp.x, y: pp.y, r: 15, _k: false });
       }
       lvl.checkpoints = cps;
-      return findSolution(lvl, false);            // verify with cps
+      return findSolution(lvl, false);
     }
 
-    for (var it = 0; it < 32; it++) {
-      var solvable = placeCheckpoints();
-      if (!solvable) {
-        for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.86;
-        lvl.portal.r = Math.min(42, lvl.portal.r * 1.10);
-        continue;
+    if (tier === "intro") {
+      // GUARANTEE the obvious move works: aiming straight at the portal
+      // (with mid power) must win. No mid-air wall on stage 1–2.
+      for (var ii = 0; ii < 30; ii++) {
+        if (!findSolution(lvl, false) || !directWins(lvl)) {
+          for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.80;
+          lvl.portal.r = Math.min(64, lvl.portal.r * 1.07);
+          continue;
+        }
+        break;
       }
-      // routing (wormhole / 2+ checkpoints) is already non-trivial — don't
-      // beef the blocker into unsolvability.
-      if (!directWins(lvl) || lvl.worm || lvl.checkpoints.length >= 2) break;
-      blocker.mass *= 1.20;
-      lvl.portal.r = Math.max(15, lvl.portal.r * 0.97);
+    } else if (tier === "early") {
+      for (var ej = 0; ej < 26; ej++) {
+        if (placeCheckpoints()) break;            // solvable is enough
+        for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.85;
+        lvl.portal.r = Math.min(48, lvl.portal.r * 1.10);
+      }
+    } else {
+      for (var it = 0; it < 32; it++) {
+        var solvable = placeCheckpoints();
+        if (!solvable) {
+          for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.86;
+          lvl.portal.r = Math.min(42, lvl.portal.r * 1.10);
+          continue;
+        }
+        if (!directWins(lvl) || lvl.worm || lvl.checkpoints.length >= 2) break;
+        blocker.mass *= 1.20;
+        lvl.portal.r = Math.max(15, lvl.portal.r * 0.97);
+      }
     }
-    if (!findSolution(lvl, false)) {            // ease before destroying content
-      for (var e2 = 0; e2 < 10 && !findSolution(lvl, false); e2++) {
+    if (!findSolution(lvl, false)) {
+      for (var e2 = 0; e2 < 12 && !findSolution(lvl, false); e2++) {
         for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.82;
-        lvl.portal.r = Math.min(46, lvl.portal.r * 1.12);
+        lvl.portal.r = Math.min(50, lvl.portal.r * 1.12);
       }
-      if (!findSolution(lvl, false)) {          // keep worm if it still works
+      if (!findSolution(lvl, false)) {
         lvl.hazards = []; lvl.checkpoints = []; lvl.wells = [blocker];
-        lvl.portal.r = Math.max(30, portR);
+        lvl.portal.r = Math.max(32, portR);
         if (!findSolution(lvl, false)) {
-          lvl.worm = null; lvl.wells = []; lvl.portal.r = 36;
+          lvl.worm = null; lvl.wells = []; lvl.portal.r = 38;
         }
       }
     }

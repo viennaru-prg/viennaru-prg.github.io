@@ -99,6 +99,18 @@ check("solution actually collects all checkpoints", (function () {
   return sol && sol.r.win && sol.r.collected === lvl.checkpoints.length;
 })());
 
+// ---- EARLY STAGES MUST BE APPROACHABLE (fix: stage 1 was walled) ----
+[1, 2].forEach(function (s) {
+  const L = A.genStage(s);
+  check("stage " + s + ": aiming straight at portal wins (beginner-fair)",
+    A.directWins(L));
+  check("stage " + s + ": no mid-air maze (0 hazards/cp/guardian/worm)",
+    L.hazards.length === 0 && L.checkpoints.length === 0 &&
+    !L.guardian && !L.worm);
+});
+check("difficulty ramps: stage 1 easier than stage 12 portal",
+  A.genStage(1).portal.r > A.genStage(12).portal.r);
+
 // ---- non-trivial deep stages (gravity must be used) ----
 check("stage 12 not a trivial straight shot", !A.directWins(A.genStage(12)));
 check("stage 18 not a trivial straight shot", !A.directWins(A.genStage(18)));
