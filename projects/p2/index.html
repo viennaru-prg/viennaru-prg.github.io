@@ -16,8 +16,8 @@
     flex-direction: column; align-items: center; justify-content: center;
     gap: 14px; color: #e6edf3; text-align: center; padding: 24px; box-sizing: border-box;
   }
-  .hud { justify-content: flex-start; padding-top: 24px; }
-  .hud .score { font-size: 46px; font-weight: 800; letter-spacing: -1px; }
+  .hud { justify-content: flex-start; padding-top: 22px; }
+  .hud .score { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
   .hud .meta { font-size: 13px; color: #8b949e; margin-top: 2px; }
   .hud .combo { font-size: 15px; color: #3fb950; font-weight: 700; margin-top: 4px; height: 18px; }
   h1 {
@@ -25,7 +25,7 @@
     background: linear-gradient(90deg, #58a6ff, #3fb950);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .layer p { color: #8b949e; margin: 0; font-size: 16px; max-width: 460px; }
+  .layer p { color: #8b949e; margin: 0; font-size: 16px; max-width: 470px; }
   .big { font-size: 30px; color: #e6edf3; font-weight: 700; }
   .tap { margin-top: 10px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
   @keyframes blink { 50% { opacity: .35; } }
@@ -49,8 +49,9 @@
   <div class="layer" id="startScreen">
     <h1>WEAVE</h1>
     <p>마우스/손가락으로 좌우 이동 (← → 키도 가능)</p>
-    <p>문의 빈틈을 통과하세요. 모든 문은 미리 보이고, 빠르고 정확하게만
-       움직이면 <b>반드시 통과 가능</b>합니다 — 운은 없습니다.</p>
+    <p>문의 빈틈을 통과하세요. 스테이지마다 기믹이 바뀌고
+       <b>중간보스·보스</b>가 나옵니다. 모든 문은 예고되고 완벽 플레이면
+       <b>반드시 통과 가능</b> — 운은 없습니다.</p>
     <div class="tap">화면을 탭하면 시작</div>
   </div>
 
@@ -89,10 +90,42 @@
   try { best = parseInt(window.localStorage.getItem("weave_best"), 10) || 0; } catch (e) {}
 
   // --- tuning ---
-  var PW = 30;          // player half-width (visual ~ collision)
-  var GATE_GAP = 220;   // constant vertical distance between gates (px)
-  var VMAX = 11;        // player max horizontal px/frame (defines reachability)
-  var SAFE = 0.82;      // fraction of theoretical reach used -> always fair
+  var PW = 30;            // player radius-ish / collision half
+  var GATE_GAP = 220;     // constant vertical spacing (px)
+  var VMAX = 11;          // player max horizontal px/frame
+  var SAFE = 0.80;        // reach safety fraction (always fair)
+  var GATES_PER_STAGE = 8;
+  var BOSS_HP = 6;
+  // moving-gap horizontal speed cap: a perfect player can always track it.
+  var MOVE_VEL_CAP = VMAX * 0.42;
+
+  // stage type: every 3rd = MINI, every 6th = BOSS, else NORMAL
+  function stageType(stage) {
+    if (stage % 6 === 0) return "BOSS";
+    if (stage % 3 === 0) return "MINI";
+    return "NORMAL";
+  }
+  function speedFor(stage, type) {
+    var s = 4.0 + (stage - 1) * 0.42;
+    if (type === "MINI") s *= 0.9;
+    if (type === "BOSS") s *= 0.85;
+    return s;
+  }
+  function gapForStage(stage, type) {
+    var g = Math.max(104, 200 - (stage - 1) * 9);
+    if (type === "MINI") g = Math.max(88, g * 0.78);
+    if (type === "BOSS") g = Math.max(80, g * 0.72);
+    return g;
+  }
+  // gimmick per stage: NORMAL gets gentle movement from stage>=3; MINI/BOSS move
+  function gimmickFor(stage, type) {
+    var moving = (type !== "NORMAL") || stage >= 3;
+    if (!moving) return { moving: false, amp: 0, omega: 0 };
+    var amp = (type === "BOSS" ? 130 : type === "MINI" ? 100 : 70);
+    // keep amp*omega <= MOVE_VEL_CAP  -> always trackable (skill, not luck)
+    var omega = MOVE_VEL_CAP / amp;
+    return { moving: true, amp: amp, omega: omega };
+  }
 
   var G = {
     screen: "start",
@@ -100,32 +133,46 @@
     gates: [], particles: [],
     speed: 4.0, gapW: 200,
     score: 0, combo: 0, bestCombo: 0,
-    shake: 0, overAt: 0, moveDir: 0
+    stage: 1, stageType: "NORMAL",
+    boss: { active: false, hp: 0, max: 0 },
+    shake: 0, overAt: 0, moveDir: 0, banner: "", bannerT: 0
   };
 
   function playerY() { return H - 90; }
-  function level() { return Math.floor(G.score / 5); }
-  function speedFor(lv) { return 4.0 + lv * 0.5; }
-  function gapForLevel(lv) { return Math.max(96, 200 - lv * 9); }
+  function stageOf(passed) { return Math.floor(passed / GATES_PER_STAGE) + 1; }
 
-  // horizontal distance the player can cover between two consecutive gates.
-  // gate travels GATE_GAP px at G.speed -> GATE_GAP/speed frames available.
   function maxTravel() { return VMAX * (GATE_GAP / G.speed); }
   function reach() { return maxTravel() * SAFE; }
 
-  // next gap center: random but CONSTRAINED so a perfect player can always
-  // get there from the previous center -> outcome is skill, never luck.
-  function nextCenter(prev) {
+  function nextCenter(prev, amp) {
     var r = reach();
-    var lo = Math.max(G.gapW / 2 + 8, prev - r);
-    var hi = Math.min(W - G.gapW / 2 - 8, prev + r);
-    if (hi < lo) { var m = (lo + hi) / 2; lo = m; hi = m; }
+    var margin = G.gapW / 2 + amp + 10;
+    var lo = Math.max(margin, prev - r);
+    var hi = Math.min(W - margin, prev + r);
+    if (hi < lo) { var m = (lo + hi) / 2; lo = hi = m; }
     return lo + Math.random() * (hi - lo);
   }
 
+  function configFor(stage) {
+    var t = stageType(stage);
+    return { type: t, speed: speedFor(stage, t),
+      gap: gapForStage(stage, t), gim: gimmickFor(stage, t) };
+  }
+
   function spawnGate(y) {
-    var prev = G.gates.length ? G.gates[G.gates.length - 1].cx : G.px;
-    G.gates.push({ y: y, cx: nextCenter(prev), w: G.gapW, scored: false });
+    var cfg = configFor(G.stage);
+    G.speed = cfg.speed; G.gapW = cfg.gap; G.stageType = cfg.type;
+    var prev = G.gates.length ? G.gates[G.gates.length - 1].base : G.px;
+    G.gates.push({
+      y: y, base: nextCenter(prev, cfg.gim.amp), w: cfg.gap,
+      moving: cfg.gim.moving, amp: cfg.gim.amp, omega: cfg.gim.omega,
+      phase: Math.random() * Math.PI * 2, life: 0, scored: false,
+      type: cfg.type
+    });
+  }
+
+  function gateCx(g) {
+    return g.moving ? g.base + g.amp * Math.sin(g.omega * g.life + g.phase) : g.base;
   }
 
   function reset() {
@@ -133,8 +180,11 @@
     G.px = W / 2; G.targetX = W / 2;
     G.gates = []; G.particles = [];
     G.score = 0; G.combo = 0; G.bestCombo = 0;
-    G.speed = speedFor(0); G.gapW = gapForLevel(0);
-    G.shake = 0; G.moveDir = 0;
+    G.stage = 1; G.stageType = "NORMAL";
+    G.boss = { active: false, hp: 0, max: 0 };
+    G.shake = 0; G.moveDir = 0; G.banner = ""; G.bannerT = 0;
+    var cfg = configFor(1);
+    G.speed = cfg.speed; G.gapW = cfg.gap;
     var y = -40;
     for (var i = 0; i < 4; i++) { spawnGate(y); y -= GATE_GAP; }
     paintHud();
@@ -145,7 +195,10 @@
 
   function paintHud() {
     scoreEl.textContent = G.score;
-    metaEl.textContent = (best ? "BEST " + best + "  ·  " : "") + "LV " + (level() + 1);
+    var t = G.stageType === "BOSS" ? "👑 BOSS"
+      : G.stageType === "MINI" ? "⚔ MINI-BOSS" : "STAGE";
+    metaEl.textContent = (best ? "BEST " + best + "  ·  " : "") +
+      t + " " + G.stage;
     comboEl.textContent = G.combo >= 2 ? "PERFECT x" + G.combo : "";
   }
 
@@ -158,8 +211,26 @@
         life: 1, color: color });
     }
   }
+  function banner(txt) { G.banner = txt; G.bannerT = 90; }
 
-  function gameOver(gx) {
+  function enterStage(st) {
+    G.stage = st;
+    var t = stageType(st);
+    G.stageType = t;
+    if (t === "BOSS") {
+      G.boss = { active: true, hp: BOSS_HP, max: BOSS_HP };
+      banner("👑 BOSS STAGE " + st);
+    } else if (t === "MINI") {
+      G.boss = { active: false, hp: 0, max: 0 };
+      banner("⚔ MINI-BOSS " + st);
+    } else {
+      G.boss = { active: false, hp: 0, max: 0 };
+      banner("STAGE " + st);
+    }
+    paintHud();
+  }
+
+  function gameOver() {
     G.screen = "over";
     G.overAt = Date.now();
     G.shake = 22;
@@ -173,7 +244,7 @@
       if (G.screen !== "over") return;
       finalScore.textContent = G.score;
       bestMsg.textContent = (isNew ? "🎉 신기록!  " : "BEST " + best + "  ") +
-        "· 최고 PERFECT x" + G.bestCombo;
+        "· STAGE " + G.stage + " · 최고 PERFECT x" + G.bestCombo;
       hud.classList.add("hidden");
       overScreen.classList.remove("hidden");
     }, 650);
@@ -206,46 +277,56 @@
 
   function update() {
     if (G.screen === "playing") {
-      // player moves toward target, capped at VMAX (defines reachability)
-      if (G.moveDir) {
-        G.px = clampX(G.px + G.moveDir * VMAX);
-        G.targetX = G.px;
-      } else {
+      if (G.moveDir) { G.px = clampX(G.px + G.moveDir * VMAX); G.targetX = G.px; }
+      else {
         var d = G.targetX - G.px;
-        if (Math.abs(d) <= VMAX) G.px = G.targetX;
-        else G.px += (d > 0 ? VMAX : -VMAX);
-        G.px = clampX(G.px);
+        G.px = Math.abs(d) <= VMAX ? G.targetX
+          : clampX(G.px + (d > 0 ? VMAX : -VMAX));
       }
 
       for (var i = 0; i < G.gates.length; i++) {
         var g = G.gates[i];
-        g.y += G.speed;
+        g.life++; g.y += G.speed;
         if (!g.scored && g.y >= playerY()) {
           g.scored = true;
-          var off = Math.abs(G.px - g.cx);
-          if (off > g.w / 2) { gameOver(g.cx); return; }
+          var cx = gateCx(g);
+          var off = Math.abs(G.px - cx);
+          if (off > g.w / 2) { gameOver(); return; }
           G.score++;
           var perfect = off < g.w * 0.16;
           if (perfect) {
-            G.combo++;
-            if (G.combo > G.bestCombo) G.bestCombo = G.combo;
+            G.combo++; if (G.combo > G.bestCombo) G.bestCombo = G.combo;
           } else G.combo = 0;
-          addParticles(G.px, playerY(), perfect ? "#3fb950" : "#58a6ff",
-            perfect ? 20 : 10);
+
+          if (G.boss.active) {
+            G.boss.hp--;
+            addParticles(G.px, playerY(), "#e3b341", 14);
+            if (G.boss.hp <= 0) {
+              G.boss.active = false;
+              G.score += 10;                 // boss clear bonus
+              addParticles(W / 2, playerY(), "#3fb950", 50);
+              G.shake = Math.max(G.shake, 14);
+              banner("BOSS CLEAR  +10");
+            }
+          } else {
+            addParticles(G.px, playerY(), perfect ? "#3fb950" : "#58a6ff",
+              perfect ? 20 : 10);
+          }
           G.shake = Math.max(G.shake, perfect ? 6 : 3);
-          // difficulty: only precision/speed demand rises, never randomness
-          G.speed = speedFor(level());
-          G.gapW = gapForLevel(level());
+
+          var st = stageOf(G.score);
+          if (st !== G.stage) enterStage(st);
           paintHud();
         }
       }
-      // keep constant vertical spacing; recycle off-screen gates
+
       var keep = [];
       for (var k = 0; k < G.gates.length; k++)
         if (G.gates[k].y < H + 40) keep.push(G.gates[k]);
       G.gates = keep;
       var topY = G.gates.length ? G.gates[G.gates.length - 1].y : playerY();
       while (topY > -GATE_GAP) { topY -= GATE_GAP; spawnGate(topY); }
+      if (G.bannerT > 0) G.bannerT--;
     }
 
     var pk = [];
@@ -266,22 +347,40 @@
 
     if (G.screen === "playing" || G.screen === "over") {
       for (var i = 0; i < G.gates.length; i++) {
-        var g = G.gates[i];
-        ctx.fillStyle = g.scored ? "rgba(63,185,80,0.18)" : "rgba(88,166,255,0.30)";
-        ctx.fillRect(0, g.y - 5, g.cx - g.w / 2, 10);
-        ctx.fillRect(g.cx + g.w / 2, g.y - 5, W - (g.cx + g.w / 2), 10);
-        // gap edge markers (telegraph)
-        ctx.fillStyle = g.scored ? "#3fb950" : "#58a6ff";
-        ctx.fillRect(g.cx - g.w / 2 - 3, g.y - 7, 3, 14);
-        ctx.fillRect(g.cx + g.w / 2, g.y - 7, 3, 14);
+        var g = G.gates[i], cx = gateCx(g);
+        var col = g.type === "BOSS" ? "#e3b341"
+          : g.type === "MINI" ? "#a371f7" : "#58a6ff";
+        ctx.fillStyle = g.scored ? "rgba(63,185,80,0.16)"
+          : (g.type === "BOSS" ? "rgba(227,179,65,0.28)"
+            : g.type === "MINI" ? "rgba(163,113,247,0.28)"
+            : "rgba(88,166,255,0.28)");
+        ctx.fillRect(0, g.y - 5, cx - g.w / 2, 10);
+        ctx.fillRect(cx + g.w / 2, g.y - 5, W - (cx + g.w / 2), 10);
+        ctx.fillStyle = g.scored ? "#3fb950" : col;
+        ctx.fillRect(cx - g.w / 2 - 3, g.y - 7, 3, 14);
+        ctx.fillRect(cx + g.w / 2, g.y - 7, 3, 14);
       }
       var py = playerY();
       ctx.fillStyle = "#fff";
       ctx.shadowColor = "#fff"; ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.arc(G.px, py, PW * 0.5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(G.px, py, PW * 0.5, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
+
+      if (G.boss.active) {
+        var bw = Math.min(W - 60, 360), bx = (W - bw) / 2, by = 84;
+        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fillRect(bx, by, bw, 12);
+        ctx.fillStyle = "#e3b341";
+        ctx.fillRect(bx, by, bw * (G.boss.hp / G.boss.max), 12);
+      }
+      if (G.bannerT > 0) {
+        ctx.globalAlpha = Math.min(1, G.bannerT / 30);
+        ctx.fillStyle = "#e6edf3";
+        ctx.font = "700 30px -apple-system, Segoe UI, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(G.banner, W / 2, H * 0.4);
+        ctx.globalAlpha = 1;
+      }
     }
 
     for (var q = 0; q < G.particles.length; q++) {
@@ -299,9 +398,13 @@
 
   window.__WEAVE__ = {
     G: G, update: update, handleInput: handleInput, reset: reset,
-    level: level, speedFor: speedFor, gapForLevel: gapForLevel,
+    stageOf: stageOf, stageType: stageType, speedFor: speedFor,
+    gapForStage: gapForStage, gimmickFor: gimmickFor, configFor: configFor,
     maxTravel: maxTravel, reach: reach, nextCenter: nextCenter,
-    consts: { PW: PW, GATE_GAP: GATE_GAP, VMAX: VMAX, SAFE: SAFE }
+    gateCx: gateCx, enterStage: enterStage,
+    consts: { PW: PW, GATE_GAP: GATE_GAP, VMAX: VMAX, SAFE: SAFE,
+      GATES_PER_STAGE: GATES_PER_STAGE, BOSS_HP: BOSS_HP,
+      MOVE_VEL_CAP: MOVE_VEL_CAP }
   };
 
   loop();
