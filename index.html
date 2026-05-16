@@ -190,7 +190,6 @@
   ];
 
   var STORE_KEY = "orbit_reviews_v1";
-  var REPO = "viennaru-prg/viennaru-prg.github.io";
 
   function loadAll() {
     try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; }
@@ -211,41 +210,13 @@
     saveAll(all);
     return all[id];
   }
-  function markDelivered(id, via) {
-    var all = loadAll();
-    if (all[id]) { all[id].delivered = true; all[id].via = via || "manual"; saveAll(all); }
-    return all[id] || null;
-  }
-  // auto path: only works when opened via the local bridge (localhost).
-  // on github.io/file:// the fetch fails and we silently fall back to manual.
-  function autoDeliver(p, rev, done) {
-    try {
-      fetch("/api/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: p.id, projectN: p.n, title: p.title,
-          rating: rev.rating, text: rev.text, savedAt: rev.savedAt
-        })
-      }).then(function (r) { done(r && r.ok); })
-        .catch(function () { done(false); });
-    } catch (e) { done(false); }
-  }
   function buildClaudeMessage(p, r) {
     return "[후기] 프로젝트 " + p.n + " " + p.title +
       " · 별점 " + r.rating + "/5 · " + r.savedAt + "\n" + r.text;
   }
-  function buildIssueUrl(p, r) {
-    var title = "[후기] 프로젝트 " + p.n + " " + p.title + " · 별점 " + r.rating + "/5";
-    var body = r.text + "\n\n---\n별점: " + r.rating + "/5\n작성일: " + r.savedAt +
-      "\n<!-- review project=" + p.id + " rating=" + r.rating + " -->";
-    return "https://github.com/" + REPO + "/issues/new?labels=review&title=" +
-      encodeURIComponent(title) + "&body=" + encodeURIComponent(body);
-  }
   window.__HOME__ = {
     getReview: getReview, putReview: putReview,
-    buildClaudeMessage: buildClaudeMessage, buildIssueUrl: buildIssueUrl,
-    markDelivered: markDelivered,
+    buildClaudeMessage: buildClaudeMessage,
     _setStore: function (k) { STORE_KEY = k; }
   };
 
@@ -289,10 +260,8 @@
     var top = el("div", "top");
     top.appendChild(el("span", "num", "No." + pad(p.n)));
     top.appendChild(el("h3", null, esc(p.title) + " " + p.emoji));
-    var chipTxt = !saved ? "✍️ 후기 미작성"
-      : (saved.delivered ? "✅ 전달 완료" : "💾 저장됨 · 미전달");
-    top.appendChild(el("span", "chip" + (saved && saved.delivered ? " done" : ""),
-      chipTxt));
+    top.appendChild(el("span", "chip" + (saved ? " done" : ""),
+      saved ? "✅ 후기 작성됨" : "✍️ 후기 미작성"));
     card.appendChild(top);
 
     card.appendChild(el("div", "desc", esc(p.desc)));
@@ -322,22 +291,18 @@
     var saved = getReview(p.id);
 
     if (saved && !rv._editing) {
-      rv.appendChild(el("div", "done-line",
-        (saved.delivered
-          ? "✅ 전달 완료" + (saved.via === "auto" ? "(자동)" : "") + " · "
-          : "💾 저장됨(아직 미전달) · ") + saved.savedAt));
+      rv.appendChild(el("div", "done-line", "✅ 작성함 · " + saved.savedAt));
       rv.insertAdjacentHTML("beforeend", starsHtml(saved.rating, true));
       rv.appendChild(el("div", "saved-text", esc(saved.text)));
 
       var row = el("div", "row");
       var edit = el("button", "mini", "수정");
-      var send = el("button", "mini primary", "📝 사이트에 후기 등록");
-      var copy = el("button", "mini", "📋 텍스트 복사");
-      row.appendChild(edit); row.appendChild(send); row.appendChild(copy);
+      var copy = el("button", "mini", "📋 복사해서 채팅에 붙여넣기");
+      row.appendChild(edit); row.appendChild(copy);
       rv.appendChild(row);
       rv.appendChild(el("div", "hint",
-        "‘사이트에 후기 등록’ → GitHub 화면에서 초록 Submit 한 번이면 끝. " +
-        "공개로 남아 다음 프로젝트에 반영됩니다."));
+        "이 후기는 본인 기록용입니다. 다음 프로젝트에 반영하려면 채팅창에 적어주세요 " +
+        "— 위 ‘복사’로 그대로 붙여넣어도 됩니다."));
 
       if (saved.history && saved.history.length) {
         var d = el("details", "hist");
@@ -351,18 +316,12 @@
       }
 
       edit.onclick = function () { rv._editing = true; paintReview(rv, p); };
-      send.onclick = function () {
-        window.open(buildIssueUrl(p, saved), "_blank", "noopener");
-        markDelivered(p.id);
-        paintReview(rv, p); refreshStat(); rerender();
-      };
       copy.onclick = function () {
         var msg = buildClaudeMessage(p, saved);
         copyText(msg, function (ok) {
           copy.textContent = ok ? "복사됨 ✓ 채팅에 붙여넣기" : "복사 실패";
           if (!ok) { var t = el("textarea"); t.value = msg; rv.appendChild(t); t.select(); }
-          if (ok) { markDelivered(p.id); refreshStat(); rerender(); }
-          setTimeout(function () { copy.textContent = "📋 텍스트 복사"; }, 4000);
+          setTimeout(function () { copy.textContent = "📋 복사해서 채팅에 붙여넣기"; }, 4000);
         });
       };
       return;
@@ -405,11 +364,7 @@
     save.onclick = function () {
       var text = ta.value.trim();
       if (!picked && !text) { ta.focus(); return; }
-      var rec = putReview(p.id, picked || 0, text);
-      autoDeliver(p, rec, function (ok) {
-        if (ok) markDelivered(p.id, "auto");
-        paintReview(rv, p); refreshStat(); rerender();
-      });
+      putReview(p.id, picked || 0, text);
       paintReview(rv, p); refreshStat(); rerender();
     };
   }
