@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>AURORA — 프로젝트 5</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #05070d;
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  #c { display: block; touch-action: none; }
+  .layer {
+    position: fixed; inset: 0; pointer-events: none; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: #e6edf3; text-align: center; padding: 24px; box-sizing: border-box;
+  }
+  .hud { justify-content: flex-start; padding-top: 18px; }
+  .hud .score { font-size: 40px; font-weight: 800; letter-spacing: -1px; }
+  .hud .meta { font-size: 13px; color: #9aa4b2; margin-top: 2px; }
+  .hud .combo { font-size: 15px; color: #7ee787; font-weight: 700; margin-top: 3px; height: 18px; }
+  h1 {
+    font-size: clamp(42px, 13vw, 90px); margin: 0; letter-spacing: 10px;
+    background: linear-gradient(90deg, #58a6ff, #a371f7, #f0883e);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .layer p { color: #9aa4b2; margin: 0; font-size: 15px; max-width: 500px; }
+  .asc { color: #e3b341; font-size: 14px; font-weight: 700; }
+  .big { font-size: 28px; color: #e6edf3; font-weight: 700; }
+  .tap { margin-top: 8px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; pointer-events: auto; }
+  .upg {
+    width: 170px; background: #11161f; border: 1px solid #2b3240;
+    border-radius: 12px; padding: 15px; cursor: pointer; color: #e6edf3;
+    transition: border-color .12s, transform .12s;
+  }
+  .upg:hover { border-color: #58a6ff; transform: translateY(-3px); }
+  .upg b { font-size: 15px; } .upg span { color: #9aa4b2; font-size: 12.5px; }
+  .home {
+    position: fixed; left: 16px; bottom: 14px; font-size: 13px;
+    color: #9aa4b2; text-decoration: none; z-index: 9; pointer-events: auto;
+  }
+  .home:hover { color: #58a6ff; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="layer hud hidden" id="hud">
+    <div class="score" id="score">0</div>
+    <div class="meta" id="meta"></div>
+    <div class="combo" id="combo"></div>
+  </div>
+
+  <div class="layer" id="startScreen">
+    <h1>AURORA</h1>
+    <p>마우스/손가락(또는 WASD·화살표)으로 이동. 좁혀오는 빛고리의
+       <b>예고된 틈</b>으로 빠져나가세요. 운으로 죽지 않습니다 —
+       모든 위협은 미리 보이고 완벽 플레이면 반드시 생존.</p>
+    <p>여러 <b>영역</b>을 지나며 네임드 보스를 넘고, 빛조각을 모으세요.
+       살아남은 빛은 사라지지 않고 다음 여정의 힘이 됩니다.</p>
+    <div class="asc" id="ascLine"></div>
+    <div class="tap">화면을 탭하면 시작</div>
+  </div>
+
+  <div class="layer hidden" id="upgScreen">
+    <div class="big" id="upgTitle">강화 선택</div>
+    <p>빛조각으로 강화 (매번 무작위 3종)</p>
+    <div class="cards" id="upgCards"></div>
+  </div>
+
+  <div class="layer hidden" id="overScreen">
+    <h1>JOURNEY END</h1>
+    <div class="big" id="finalScore">0</div>
+    <p id="bestMsg"></p>
+    <p id="ascGain" class="asc"></p>
+    <div class="tap" id="retryHint">잠시 후 다시 떠나기</div>
+  </div>
+
+  <a class="home" href="../../index.html">← 홈으로</a>
+
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("c"), ctx = canvas.getContext("2d");
+  var scoreEl = $("score"), metaEl = $("meta"), comboEl = $("combo"),
+      hud = $("hud"), startScreen = $("startScreen"),
+      upgScreen = $("upgScreen"), overScreen = $("overScreen"),
+      finalScore = $("finalScore"), bestMsg = $("bestMsg"),
+      ascLine = $("ascLine"), ascGain = $("ascGain"),
+      upgCards = $("upgCards"), upgTitle = $("upgTitle");
+
+  var W, H, CX, CY, AR;
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    CX = W / 2; CY = H / 2; AR = Math.min(W, H) * 0.46;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+  var TAU = Math.PI * 2;
+
+  // ---------- procedural audio (optional, guarded) ----------
+  var AC = null;
+  function audio() {
+    if (AC) return AC;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) AC = new Ctx();
+    } catch (e) { AC = null; }
+    return AC;
+  }
+  function beep(freq, dur, type, vol) {
+    var a = audio(); if (!a) return;
+    try {
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = type || "sine"; o.frequency.value = freq;
+      g.gain.value = vol || 0.05;
+      o.connect(g); g.connect(a.destination);
+      var t = a.currentTime;
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.12));
+      o.start(t); o.stop(t + (dur || 0.12));
+    } catch (e) {}
+  }
+
+  // ---------- meta progression (persists across runs) ----------
+  var META_KEY = "aurora_meta_v1";
+  function metaLoad() {
+    try {
+      var m = JSON.parse(window.localStorage.getItem(META_KEY));
+      if (m && typeof m === "object")
+        return { career: m.career | 0, best: m.best | 0, asc: m.asc | 0 };
+    } catch (e) {}
+    return { career: 0, best: 0, asc: 0 };
+  }
+  function metaSave(m) {
+    try { window.localStorage.setItem(META_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+  function ascFromCareer(c) {
+    // gentle curve: each ascension needs ~50 more than the last
+    var a = 0, need = 60, acc = 0;
+    while (c >= acc + need) { acc += need; a++; need += 50; }
+    return a;
+  }
+
+  // ---------- realms (themed acts) ----------
+  var REALMS = [
+    { n: "여명의 평원", c: "#58a6ff", c2: "#1f6feb", bg: "#070b14",
+      f: "빛이 처음 깨어나는 곳." },
+    { n: "보랏빛 협곡", c: "#a371f7", c2: "#8957e5", bg: "#0c0814",
+      f: "그림자와 빛이 교차한다." },
+    { n: "불꽃의 회랑", c: "#f0883e", c2: "#db6d28", bg: "#140b07",
+      f: "뜨거운 리듬을 견뎌라." },
+    { n: "심연의 정원", c: "#39d353", c2: "#2ea043", bg: "#07140c",
+      f: "고요 속의 정밀함." },
+    { n: "별의 끝", c: "#e3b341", c2: "#bb8009", bg: "#14110a",
+      f: "여정의 가장 먼 곳." }
+  ];
+  function realmOf(stage) { return REALMS[Math.floor((stage - 1) / 4) % REALMS.length]; }
+  var BOSSES = ["루멘", "녹스", "이그니스", "베르단트", "아스트룸",
+    "에클립스", "프리즘", "노바"];
+  function bossName(stage) { return BOSSES[(Math.floor(stage / 6) - 1) % BOSSES.length] || "노바"; }
+
+  // ---------- tuning (fairness preserved: perfect play always survives) ----
+  var BASE_VMAX = 6.4, PR_BASE = 11, RING_TH = 9;
+  var WAVES_PER_STAGE = 6, BOSS_HP = 9, LUCK_RATE = 0.05;
+
+  function stageType(s) {
+    if (s % 6 === 0) return "BOSS";
+    if (s % 3 === 0) return "MINI";
+    return "NORMAL";
+  }
+  function ringSpeed(stage, type) {
+    var v = 1.0 + (stage - 1) * 0.115;
+    if (type === "MINI") v *= 1.10;
+    if (type === "BOSS") v *= 1.22;
+    return Math.min(v, 3.3);
+  }
+  function gapW(stage, type) {
+    var g = 1.22 - (stage - 1) * 0.052;
+    if (type === "MINI") g -= 0.14;
+    if (type === "BOSS") g -= 0.20;
+    return Math.max(0.44, g);
+  }
+  function gapRot(stage, type) {
+    var b = 0.005 + (stage - 1) * 0.0016;
+    if (type !== "NORMAL") b += 0.003;
+    return Math.min(b, 0.020);
+  }
+  function ringGap(stage, type) {
+    var f = 174 - (stage - 1) * 8;
+    if (type === "MINI") f -= 24;
+    if (type === "BOSS") f -= 34;
+    return Math.max(54, f);
+  }
+
+  var G = {
+    screen: "start",
+    px: 0, py: 0, tx: 0, ty: 0,
+    vmax: BASE_VMAX, pr: PR_BASE, shardMul: 1, shield: 0, scoreMul: 1,
+    rings: [], orbs: [], parts: [],
+    score: 0, shards: 0, runShards: 0, stage: 1, stageType: "NORMAL",
+    waveInStage: 0, spawnT: 0, orbT: 0, seq: 0,
+    boss: { active: false, hp: 0, max: 0, name: "" },
+    realm: REALMS[0], keys: { x: 0, y: 0 },
+    shake: 0, flash: 0, overAt: 0, banner: "", bsub: "", bannerT: 0,
+    pendingUpg: null, meta: { career: 0, best: 0, asc: 0 }, startAsc: 0
+  };
+
+  function dist(ax, ay, bx, by) {
+    var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy);
+  }
+  function angNorm(a) { a %= TAU; if (a < 0) a += TAU; return a; }
+  function angIn(a, c, hw) {
+    var d = Math.abs(angNorm(a - c)); if (d > Math.PI) d = TAU - d;
+    return d <= hw;
+  }
+  function maxTravel() { return G.vmax * (AR / Math.max(0.6, ringSpeedCur())); }
+  var _rsc = 1.0;
+  function ringSpeedCur() { return _rsc; }
+  function reach() { return maxTravel() * 0.80; }
+
+  function spawnRing() {
+    var t = G.stageType;
+    _rsc = ringSpeed(G.stage, t);
+    var prev = G.rings.length ? G.rings[G.rings.length - 1].gapA
+      : Math.random() * TAU;
+    var r = reach();
+    var ga = angNorm(prev + Math.max(-r / AR, Math.min(r / AR,
+      (Math.random() * 2 - 1) * 1.2)));
+    G.rings.push({ r: AR + RING_TH, v: _rsc, gapA: ga,
+      gapW: gapW(G.stage, t) / 2, rot: gapRot(G.stage, t) *
+        (Math.random() < 0.5 ? -1 : 1), grazed: false,
+      hitChecked: false, type: t });
+    G.seq++;
+  }
+  function spawnOrb() {
+    var a = Math.random() * TAU, rr = AR * (0.25 + Math.random() * 0.55);
+    G.orbs.push({ x: CX + Math.cos(a) * rr, y: CY + Math.sin(a) * rr,
+      vx: (Math.random() - .5) * 0.8, vy: (Math.random() - .5) * 0.8,
+      life: 600, r: 9 });
+  }
+
+  function showBanner(main, sub) { G.banner = main; G.bsub = sub || ""; G.bannerT = 110; }
+
+  function applyRealm() {
+    var rm = realmOf(G.stage);
+    if (rm !== G.realm) {
+      G.realm = rm;
+      showBanner("◆ " + rm.n, rm.f);
+      beep(420, 0.3, "triangle", 0.06);
+    }
+  }
+
+  function enterStage(s) {
+    G.stage = s; G.stageType = stageType(s); G.waveInStage = 0;
+    applyRealm();
+    if (G.stageType === "BOSS") {
+      var nm = bossName(s);
+      G.boss = { active: true, hp: BOSS_HP, max: BOSS_HP, name: nm };
+      showBanner("👑 " + nm, "보스 — 빛으로 꿰뚫어라");
+      beep(140, 0.5, "sawtooth", 0.06);
+    } else {
+      G.boss = { active: false, hp: 0, max: 0, name: "" };
+      if (G.stageType === "MINI") { showBanner("⚔ 중간보스", "더 좁은 틈"); }
+    }
+  }
+
+  function startGame() {
+    G.meta = metaLoad();
+    G.startAsc = G.meta.asc;
+    G.screen = "playing";
+    G.px = CX; G.py = CY; G.tx = CX; G.ty = CY;
+    G.vmax = BASE_VMAX * (1 + G.startAsc * 0.02);
+    G.pr = PR_BASE; G.shardMul = 1 + G.startAsc * 0.05;
+    G.shield = Math.floor(G.startAsc / 2); G.scoreMul = 1;
+    G.rings = []; G.orbs = []; G.parts = [];
+    G.score = 0; G.shards = 0; G.runShards = 0;
+    G.stage = 1; G.stageType = "NORMAL"; G.waveInStage = 0;
+    G.spawnT = 0; G.orbT = 0; G.seq = 0;
+    G.boss = { active: false, hp: 0, max: 0, name: "" };
+    G.realm = null; G.shake = 0; G.flash = 0;
+    G.banner = ""; G.bsub = ""; G.bannerT = 0; G.pendingUpg = null;
+    applyRealm();
+    spawnRing();
+    paintHud();
+    hud.classList.remove("hidden");
+    startScreen.classList.add("hidden");
+    upgScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+  }
+
+  function paintHud() {
+    scoreEl.textContent = G.score;
+    var t = G.stageType === "BOSS" ? "👑 " + G.boss.name :
+      G.stageType === "MINI" ? "⚔ MINI" : "STAGE";
+    metaEl.textContent = (G.realm ? G.realm.n + "  ·  " : "") +
+      t + " " + G.stage + "  ·  ◆" + G.shards +
+      (G.shield ? "  ·  🛡" + G.shield : "");
+    comboEl.textContent = G.meta && G.meta.best ? "BEST " + G.meta.best : "";
+  }
+
+  var POOL = [
+    { k: "spd", t: "민첩", d: "이동 +12%", cost: 3, ap: function(){ G.vmax *= 1.12; } },
+    { k: "spd2", t: "질주", d: "이동 +22%", cost: 5, ap: function(){ G.vmax *= 1.22; } },
+    { k: "box", t: "소형 코어", d: "피격 반경 -18%", cost: 3, ap: function(){ G.pr *= 0.82; } },
+    { k: "box2", t: "미세 코어", d: "피격 반경 -30%", cost: 5, ap: function(){ G.pr *= 0.70; } },
+    { k: "shd", t: "빛 증폭", d: "빛조각 +50%", cost: 2, ap: function(){ G.shardMul *= 1.5; } },
+    { k: "shd2", t: "빛 대증폭", d: "빛조각 +100%", cost: 6, ap: function(){ G.shardMul *= 2; } },
+    { k: "sco", t: "광휘", d: "점수 +30%", cost: 4, ap: function(){ G.scoreMul *= 1.3; } },
+    { k: "shield", t: "수호막 +1", d: "피격 1회 무효", cost: 5, ap: function(){ G.shield += 1; } }
+  ];
+  function rollOffers() {
+    var bag = POOL.slice(), out = [];
+    for (var i = 0; i < 3 && bag.length; i++)
+      out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    return out;
+  }
+  function openUpgrades() {
+    G.screen = "upgrade";
+    upgTitle.textContent = "STAGE " + G.stage + " 돌파 — 강화  (◆ " + G.shards + ")";
+    upgCards.innerHTML = "";
+    rollOffers().forEach(function (u) {
+      var c = document.createElement("div");
+      c.className = "upg";
+      c.innerHTML = "<b>" + u.t + "</b><br><span>" + u.d +
+        "</span><br><span>비용 ◆" + u.cost + "</span>";
+      c.onclick = function () {
+        if (G.shards < u.cost) return;
+        G.shards -= u.cost; u.ap(); beep(660, 0.1, "square", 0.05);
+        resumeFromUpgrade();
+      };
+      upgCards.appendChild(c);
+    });
+    var sk = document.createElement("div");
+    sk.className = "upg";
+    sk.innerHTML = "<b>건너뛰기</b><br><span>빛조각 보존</span>";
+    sk.onclick = resumeFromUpgrade;
+    upgCards.appendChild(sk);
+    hud.classList.add("hidden");
+    upgScreen.classList.remove("hidden");
+  }
+  function resumeFromUpgrade() {
+    upgScreen.classList.add("hidden");
+    hud.classList.remove("hidden");
+    G.screen = "playing";
+    enterStage(G.stage + 1);
+    paintHud();
+  }
+
+  function addParts(x, y, color, n) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * TAU, s = 1 + Math.random() * 4;
+      G.parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 1, color: color });
+    }
+  }
+
+  function gameOver() {
+    G.screen = "over";
+    G.overAt = Date.now();
+    G.shake = 26; G.flash = 1;
+    addParts(G.px, G.py, "#ff5d5d", 56);
+    beep(90, 0.5, "sawtooth", 0.07);
+    var m = G.meta;
+    m.career += G.runShards;
+    var newBest = G.score > m.best;
+    if (newBest) m.best = G.score;
+    var prevAsc = m.asc;
+    m.asc = ascFromCareer(m.career);
+    metaSave(m);
+    setTimeout(function () {
+      if (G.screen !== "over") return;
+      finalScore.textContent = G.score;
+      bestMsg.textContent = (newBest ? "🎉 신기록!  " : "BEST " + m.best + "  ") +
+        "· STAGE " + G.stage + " · " + G.realm.n;
+      ascGain.textContent = (m.asc > prevAsc ?
+        "✦ 승천 " + prevAsc + " → " + m.asc + " (다음 여정이 강해집니다)" :
+        "✦ 누적 빛 " + m.career + " · 승천 " + m.asc);
+      hud.classList.add("hidden");
+      overScreen.classList.remove("hidden");
+    }, 680);
+  }
+
+  function handleTap() {
+    if (G.screen === "start") startGame();
+    else if (G.screen === "over") { if (Date.now() - G.overAt > 700) startGame(); }
+  }
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target && e.target.classList &&
+        (e.target.classList.contains("home") ||
+         e.target.classList.contains("upg"))) return;
+    e.preventDefault();
+    if (G.screen === "playing") { G.tx = e.clientX; G.ty = e.clientY; }
+    else handleTap();
+  }, { passive: false });
+  window.addEventListener("pointermove", function (e) {
+    if (G.screen === "playing") { G.tx = e.clientX; G.ty = e.clientY; }
+  });
+  window.addEventListener("keydown", function (e) {
+    var k = e.code;
+    if (k === "ArrowLeft" || k === "KeyA") G.keys.x = -1;
+    else if (k === "ArrowRight" || k === "KeyD") G.keys.x = 1;
+    else if (k === "ArrowUp" || k === "KeyW") G.keys.y = -1;
+    else if (k === "ArrowDown" || k === "KeyS") G.keys.y = 1;
+    else if (k === "Space" || k === "Enter") { e.preventDefault(); handleTap(); }
+  });
+  window.addEventListener("keyup", function (e) {
+    var k = e.code;
+    if (((k === "ArrowLeft" || k === "KeyA") && G.keys.x < 0) ||
+        ((k === "ArrowRight" || k === "KeyD") && G.keys.x > 0)) G.keys.x = 0;
+    if (((k === "ArrowUp" || k === "KeyW") && G.keys.y < 0) ||
+        ((k === "ArrowDown" || k === "KeyS") && G.keys.y > 0)) G.keys.y = 0;
+  });
+
+  function clampArena(x, y) {
+    var d = dist(x, y, CX, CY), lim = AR - G.pr - 2;
+    if (d <= lim) return { x: x, y: y };
+    var k = lim / d;
+    return { x: CX + (x - CX) * k, y: CY + (y - CY) * k };
+  }
+  function movePlayer() {
+    var nx = G.px, ny = G.py;
+    if (G.keys.x || G.keys.y) {
+      var L = Math.hypot(G.keys.x, G.keys.y) || 1;
+      nx += (G.keys.x / L) * G.vmax; ny += (G.keys.y / L) * G.vmax;
+      G.tx = nx; G.ty = ny;
+    } else {
+      var dx = G.tx - G.px, dy = G.ty - G.py, d = Math.hypot(dx, dy);
+      if (d <= G.vmax) { nx = G.tx; ny = G.ty; }
+      else { nx += dx / d * G.vmax; ny += dy / d * G.vmax; }
+    }
+    var c = clampArena(nx, ny); G.px = c.x; G.py = c.y;
+  }
+
+  function update() {
+    if (G.screen === "playing") {
+      movePlayer();
+
+      G.spawnT++;
+      if (G.spawnT >= ringGap(G.stage, G.stageType)) { G.spawnT = 0; spawnRing(); }
+      G.orbT++;
+      if (G.orbT >= 220) { G.orbT = 0; if (Math.random() < 0.8) spawnOrb(); }
+
+      var pr = dist(G.px, G.py, CX, CY);
+      var pa = angNorm(Math.atan2(G.py - CY, G.px - CX));
+
+      // orbs (pure bonus, never lethal)
+      var ok2 = [];
+      for (var j = 0; j < G.orbs.length; j++) {
+        var ob = G.orbs[j];
+        ob.x += ob.vx; ob.y += ob.vy; ob.life--;
+        if (dist(ob.x, ob.y, CX, CY) > AR - 6) { ob.vx *= -1; ob.vy *= -1; }
+        if (dist(ob.x, ob.y, G.px, G.py) <= ob.r + G.pr) {
+          var g = Math.max(1, Math.round(2 * G.shardMul));
+          if (Math.random() < LUCK_RATE) g += 2;
+          G.shards += g; G.runShards += g;
+          G.score += Math.round(2 * G.scoreMul);
+          addParts(ob.x, ob.y, "#7ee787", 12);
+          beep(880, 0.08, "sine", 0.04);
+          paintHud();
+          continue;
+        }
+        if (ob.life > 0) ok2.push(ob);
+      }
+      G.orbs = ok2;
+
+      var keep = [];
+      for (var i = 0; i < G.rings.length; i++) {
+        var R = G.rings[i];
+        R.r -= R.v; R.gapA = angNorm(R.gapA + R.rot);
+        if (!R.hitChecked && Math.abs(R.r - pr) <= RING_TH + G.pr) {
+          if (!angIn(pa, R.gapA, R.gapW)) {
+            if (G.shield > 0) {
+              G.shield--; R.hitChecked = true;
+              addParts(G.px, G.py, "#58a6ff", 26);
+              G.shake = Math.max(G.shake, 10); G.flash = 0.5;
+              showBanner("🛡 수호막", ""); beep(300, 0.18, "triangle", 0.06);
+              continue;
+            }
+            gameOver(); return;
+          }
+          if (!R.grazed) {
+            R.grazed = true; R.hitChecked = true;
+            G.score += Math.round(1 * G.scoreMul);
+            var gain = Math.round((1 + (R.type === "BOSS" ? 2 :
+              R.type === "MINI" ? 1 : 0)) * G.shardMul);
+            if (Math.random() < LUCK_RATE) gain += 2;
+            gain = Math.max(1, gain);
+            G.shards += gain; G.runShards += gain;
+            G.waveInStage++;
+            addParts(G.px, G.py, R.type === "BOSS" ? "#e3b341" :
+              R.type === "MINI" ? "#a371f7" : G.realm.c, 14);
+            G.shake = Math.max(G.shake, 5);
+            beep(R.type === "BOSS" ? 520 : 700, 0.07, "sine", 0.04);
+            if (G.boss.active) {
+              G.boss.hp--;
+              if (G.boss.hp <= 0) {
+                G.boss.active = false; G.score += 20;
+                addParts(CX, CY, "#7ee787", 70);
+                G.shake = Math.max(G.shake, 18); G.flash = 0.8;
+                showBanner(G.boss.name + " 격파", "+20 · 빛이 깊어진다");
+                beep(660, 0.4, "triangle", 0.07);
+                G.pendingUpg = true;
+              }
+            } else if (G.waveInStage >= WAVES_PER_STAGE) {
+              G.pendingUpg = true;
+            }
+            paintHud();
+          }
+        }
+        if (R.r > -RING_TH) keep.push(R);
+      }
+      G.rings = keep;
+
+      if (G.pendingUpg && !G.boss.active) { G.pendingUpg = null; openUpgrades(); }
+      if (G.bannerT > 0) G.bannerT--;
+    }
+
+    var pk = [];
+    for (var q = 0; q < G.parts.length; q++) {
+      var p = G.parts[q];
+      p.x += p.vx; p.y += p.vy; p.vx *= 0.95; p.vy *= 0.95; p.life -= 0.024;
+      if (p.life > 0) pk.push(p);
+    }
+    G.parts = pk;
+    if (G.shake > 0.4) G.shake *= 0.86; else G.shake = 0;
+    if (G.flash > 0.01) G.flash *= 0.86; else G.flash = 0;
+  }
+
+  function draw() {
+    var rm = G.realm || REALMS[0];
+    var gd = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.max(W, H) * 0.7);
+    gd.addColorStop(0, rm.bg);
+    gd.addColorStop(1, "#05070d");
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, W, H);
+    if (G.flash > 0.02) {
+      ctx.fillStyle = "rgba(255,255,255," + (G.flash * 0.4) + ")";
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.save();
+    if (G.shake > 0.4)
+      ctx.translate((Math.random() - .5) * G.shake * 0.55,
+                    (Math.random() - .5) * G.shake * 0.55);
+
+    ctx.beginPath(); ctx.arc(CX, CY, AR, 0, TAU);
+    ctx.strokeStyle = "rgba(154,164,178,0.18)"; ctx.lineWidth = 2; ctx.stroke();
+
+    if (G.screen === "playing" || G.screen === "over" || G.screen === "upgrade") {
+      var pR = dist(G.px, G.py, CX, CY);
+      for (var i = 0; i < G.rings.length; i++) {
+        var R = G.rings[i];
+        if (R.r < 4) continue;
+        var near = Math.abs(R.r - pR);
+        var al = near < 70 ? 1 : Math.max(0.16, 1 - (near - 70) / 320);
+        var col = R.type === "BOSS" ? "#e3b341" :
+          R.type === "MINI" ? "#a371f7" : rm.c;
+        ctx.globalAlpha = al;
+        ctx.strokeStyle = col; ctx.lineWidth = near < 70 ? RING_TH : 5;
+        ctx.beginPath();
+        ctx.arc(CX, CY, R.r, R.gapA + R.gapW, R.gapA - R.gapW + TAU);
+        ctx.stroke();
+        ctx.globalAlpha = al * (near < 70 ? 0.85 : 0.4);
+        ctx.strokeStyle = "#7ee787"; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(CX, CY, R.r, R.gapA - R.gapW, R.gapA + R.gapW);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      for (var j = 0; j < G.orbs.length; j++) {
+        var ob = G.orbs[j];
+        ctx.beginPath(); ctx.arc(ob.x, ob.y, ob.r, 0, TAU);
+        ctx.fillStyle = "#7ee787";
+        ctx.shadowColor = "#7ee787"; ctx.shadowBlur = 12; ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillStyle = "#fff";
+      ctx.shadowColor = rm.c; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(G.px, G.py, G.pr, 0, TAU); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      if (G.boss.active) {
+        var bw = Math.min(W - 80, 400), bx = (W - bw) / 2;
+        ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(bx, 64, bw, 13);
+        ctx.fillStyle = "#e3b341";
+        ctx.fillRect(bx, 64, bw * (G.boss.hp / G.boss.max), 13);
+        ctx.fillStyle = "#e6edf3";
+        ctx.font = "700 13px Segoe UI, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("👑 " + G.boss.name, W / 2, 60);
+      }
+      if (G.bannerT > 0) {
+        ctx.globalAlpha = Math.min(1, G.bannerT / 30);
+        ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+        ctx.font = "800 34px Segoe UI, sans-serif";
+        ctx.fillText(G.banner, W / 2, H * 0.30);
+        ctx.font = "500 15px Segoe UI, sans-serif";
+        ctx.fillStyle = "#9aa4b2";
+        ctx.fillText(G.bsub, W / 2, H * 0.30 + 28);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    for (var q = 0; q < G.parts.length; q++) {
+      var p = G.parts[q];
+      ctx.globalAlpha = p.life > 0 ? p.life : 0;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3 * p.life + 1, 0, TAU);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function loop() { update(); draw(); window.requestAnimationFrame(loop); }
+
+  // start screen ascension hint
+  (function () {
+    var m = metaLoad();
+    ascLine.textContent = m.asc > 0 ?
+      "✦ 승천 " + m.asc + " — 시작부터 더 빠르고 수호막을 지닌 채 출발" :
+      "✦ 살아남아 모은 빛은 다음 여정으로 이어집니다";
+  })();
+
+  window.__AURORA__ = {
+    G: G, update: update, startGame: startGame, handleTap: handleTap,
+    resumeUpgrade: resumeFromUpgrade, enterStage: enterStage,
+    stageType: stageType, ringSpeed: ringSpeed, gapW: gapW, gapRot: gapRot,
+    ringGap: ringGap, realmOf: realmOf, bossName: bossName,
+    ascFromCareer: ascFromCareer, metaLoad: metaLoad, metaSave: metaSave,
+    rollOffers: rollOffers, POOL: POOL, angNorm: angNorm, angIn: angIn,
+    dist: dist, arena: function () { return { CX: CX, CY: CY, AR: AR }; },
+    consts: { RING_TH: RING_TH, WAVES_PER_STAGE: WAVES_PER_STAGE,
+      BOSS_HP: BOSS_HP, LUCK_RATE: LUCK_RATE, BASE_VMAX: BASE_VMAX,
+      PR_BASE: PR_BASE, REALMS: REALMS.length }
+  };
+
+  loop();
+})();
+</script>
+</body>
+</html>
