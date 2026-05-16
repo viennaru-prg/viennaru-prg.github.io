@@ -83,13 +83,48 @@ function singleImminent(stage, type) {
 check("only one ring imminent (NORMAL 10)", singleImminent(10, "NORMAL"));
 check("only one ring imminent (BOSS 18)", singleImminent(18, "BOSS"));
 
-// ---- difficulty monotonic but bounded ----
-check("ring speed rises with stage",
-  A.ringSpeed(15, "NORMAL") > A.ringSpeed(1, "NORMAL"));
-check("gap narrows with stage",
-  A.gapW(15, "NORMAL") < A.gapW(1, "NORMAL"));
-check("gap floored (never impossible)", A.gapW(99, "BOSS") >= 0.62);
-check("ring speed capped", A.ringSpeed(99, "BOSS") <= 2.4);
+// ---- difficulty STEEPER (feedback: late game felt flat) ----
+check("ring speed rises steeply",
+  A.ringSpeed(10, "NORMAL") - A.ringSpeed(1, "NORMAL") >= 0.8);
+check("gap narrows steeply",
+  A.gapW(1, "NORMAL") - A.gapW(10, "NORMAL") >= 0.4);
+check("ring spacing tightens a lot late",
+  A.ringGap(1, "NORMAL") - A.ringGap(12, "NORMAL") >= 60);
+check("gap floored (never impossible)", A.gapW(99, "BOSS") >= 0.45);
+check("ring speed capped", A.ringSpeed(99, "BOSS") <= 3.1);
+
+// ---- allowed luck is ~5% and only positive (never unfair death) ----
+check("LUCK_RATE is within ~5%",
+  C.LUCK_RATE > 0 && C.LUCK_RATE <= 0.05);
+
+// ---- upgrade pool varied each time (feedback: choices always same) ----
+check("pool has many options (>=7)", A.POOL.length >= 7);
+let seen = {}, validOffer = true;
+for (let r = 0; r < 60; r++) {
+  const o = A.rollOffers();
+  if (o.length !== 3) validOffer = false;
+  const ks = {};
+  o.forEach(function (u) {
+    ks[u.k] = 1; seen[u.k] = 1;
+    if (typeof u.ap !== "function" || typeof u.cost !== "number")
+      validOffer = false;
+  });
+  if (Object.keys(ks).length !== 3) validOffer = false;   // 3 distinct
+}
+check("rollOffers gives 3 distinct valid upgrades", validOffer);
+check("offers vary across runs (>=6 different seen)",
+  Object.keys(seen).length >= 6);
+
+// ---- shield upgrade absorbs one lethal hit (strategic, still skill) ----
+A.startGame();
+A.G.shield = 1;
+A.G.px = ar.CX - 60; A.G.py = ar.CY; A.G.tx = A.G.px; A.G.ty = A.G.py;
+const prS = A.dist(A.G.px, A.G.py, ar.CX, ar.CY);
+A.G.rings = [{ r: prS + 1, v: 2, gapA: 0, gapW: 0.3, rot: 0,
+  grazed: false, hitChecked: false, type: "NORMAL" }];
+A.update();
+check("shield absorbs the hit (no game over)", A.G.screen === "playing");
+check("shield consumed", A.G.shield === 0);
 
 // ---- THE proof: a perfect dodger (telegraph-only) survives, no luck ----
 A.startGame();

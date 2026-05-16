@@ -117,40 +117,41 @@
   }
   // ring inward speed: slow enough that travel time from spawn (AR) to any
   // radius >= time for player to cross to the gap from the worst angle.
+  // STEEPER curve (feedback: late game felt flat/boring)
   function ringSpeed(stage, type) {
-    var v = 1.05 + (stage - 1) * 0.06;
-    if (type === "MINI") v *= 1.08;
-    if (type === "BOSS") v *= 1.16;
-    return Math.min(v, 2.4);
+    var v = 1.0 + (stage - 1) * 0.11;
+    if (type === "MINI") v *= 1.10;
+    if (type === "BOSS") v *= 1.20;
+    return Math.min(v, 3.1);
   }
-  // gap arc width (radians). Kept so arc length at mid radius always exceeds
-  // player diameter + margin -> reachable & passable (precision rises only).
+  // gap arc width (radians). Narrows faster -> precision demand rises clearly.
   function gapW(stage, type) {
-    var g = 1.15 - (stage - 1) * 0.035;
-    if (type === "MINI") g -= 0.12;
-    if (type === "BOSS") g -= 0.18;
-    return Math.max(0.62, g);
+    var g = 1.20 - (stage - 1) * 0.055;
+    if (type === "MINI") g -= 0.14;
+    if (type === "BOSS") g -= 0.20;
+    return Math.max(0.45, g);
   }
   // gap rotation per frame: strictly below player's angular speed at mid
   // radius (vmax / midR) so the player can always out-track the gap.
   function gapRot(stage, type) {
-    var base = 0.006 + (stage - 1) * 0.0015;
+    var base = 0.005 + (stage - 1) * 0.0016;
     if (type !== "NORMAL") base += 0.003;
-    return Math.min(base, 0.018);
+    return Math.min(base, 0.020);
   }
-  // spacing between rings (frames) so at most ONE ring is near the player
-  // at a time -> a single clear safe target each moment (no luck).
+  // spacing between rings (frames). Calmer early (fewer rings -> less
+  // dizzying), steeper drop later. Still keeps ONE imminent ring at a time.
   function ringGap(stage, type) {
-    var f = 150 - (stage - 1) * 6;
-    if (type === "MINI") f -= 20;
-    if (type === "BOSS") f -= 30;
-    return Math.max(78, f);
+    var f = 172 - (stage - 1) * 8;
+    if (type === "MINI") f -= 24;
+    if (type === "BOSS") f -= 34;
+    return Math.max(56, f);
   }
+  var LUCK_RATE = 0.05;     // ~5% allowed luck (bonus shard drop only)
 
   var G = {
     screen: "start",
     px: 0, py: 0, tx: 0, ty: 0,
-    vmax: BASE_VMAX, pr: PR_BASE, shardMul: 1, grazeR: 22,
+    vmax: BASE_VMAX, pr: PR_BASE, shardMul: 1, grazeR: 22, shield: 0,
     rings: [], parts: [],
     score: 0, shards: 0, stage: 1, stageType: "NORMAL",
     waveInStage: 0, spawnT: 0, ringSeq: 0,
@@ -195,6 +196,7 @@
     G.screen = "playing";
     G.px = CX; G.py = CY; G.tx = CX; G.ty = CY;
     G.vmax = BASE_VMAX; G.pr = PR_BASE; G.shardMul = 1; G.grazeR = 22;
+    G.shield = 0;
     G.rings = []; G.parts = [];
     G.score = 0; G.shards = 0; G.stage = 1; G.stageType = "NORMAL";
     G.waveInStage = 0; G.spawnT = 0; G.ringSeq = 0;
@@ -218,23 +220,40 @@
     shEl.textContent = "◆ " + G.shards + " shards";
   }
 
-  var UPGRADES = [
+  // larger pool; each upgrade screen offers a RANDOM 3 (allowed ~5% luck =
+  // variety), so runs differ (feedback: choices were always the same).
+  var POOL = [
     { k: "spd", t: "민첩", d: "이동속도 +12%", cost: 3,
       ap: function () { G.vmax *= 1.12; } },
+    { k: "spd2", t: "가속", d: "이동속도 +22%", cost: 5,
+      ap: function () { G.vmax *= 1.22; } },
     { k: "box", t: "소형 히트박스", d: "피격 반경 -18%", cost: 3,
       ap: function () { G.pr *= 0.82; } },
-    { k: "grz", t: "그레이즈 확장", d: "그레이즈 보너스 반경 +35%", cost: 2,
+    { k: "box2", t: "미니 히트박스", d: "피격 반경 -30%", cost: 5,
+      ap: function () { G.pr *= 0.70; } },
+    { k: "grz", t: "그레이즈 확장", d: "그레이즈 보너스 +35%", cost: 2,
       ap: function () { G.grazeR *= 1.35; } },
     { k: "shd", t: "샤드 증폭", d: "샤드 획득 +50%", cost: 2,
-      ap: function () { G.shardMul *= 1.5; } }
+      ap: function () { G.shardMul *= 1.5; } },
+    { k: "shd2", t: "샤드 대증폭", d: "샤드 획득 +100%", cost: 6,
+      ap: function () { G.shardMul *= 2; } },
+    { k: "shield", t: "보호막 +1", d: "피격 1회 무효화", cost: 5,
+      ap: function () { G.shield += 1; } }
   ];
+  function rollOffers() {
+    var bag = POOL.slice(), out = [];
+    for (var i = 0; i < 3 && bag.length; i++)
+      out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    return out;
+  }
 
   function openUpgrades() {
     G.screen = "upgrade";
     upgTitle.textContent = "STAGE " + G.stage + " 클리어 — 강화 선택  (◆ " +
       G.shards + ")";
     upgCards.innerHTML = "";
-    UPGRADES.forEach(function (u) {
+    var offers = rollOffers();
+    offers.forEach(function (u) {
       var c = document.createElement("div");
       c.className = "upg";
       c.innerHTML = "<b>" + u.t + "</b><br><span>" + u.d +
@@ -372,14 +391,24 @@
 
         // collision: ring band crosses the player's radius
         if (!R.hitChecked && Math.abs(R.r - pr) <= RING_TH + G.pr) {
-          if (!angIn(pa, R.gapA, R.gapW)) { gameOver(); return; }
-          // grazed safely through the gap
+          if (!angIn(pa, R.gapA, R.gapW)) {
+            if (G.shield > 0) {            // upgrade: absorb one hit
+              G.shield--; R.hitChecked = true;
+              addParts(G.px, G.py, "#58a6ff", 26);
+              G.shake = Math.max(G.shake, 10);
+              G.banner = "SHIELD!"; G.bannerT = 50;
+              continue;
+            }
+            gameOver(); return;
+          }
+          // passed safely through the gap
           if (!R.grazed) {
             R.grazed = true; R.hitChecked = true;
             G.score += 1;
-            var edge = Math.abs(Math.abs(angNorm(pa - R.gapA)) - 0) ;
             var gain = Math.round((1 + (R.type === "BOSS" ? 2 :
               R.type === "MINI" ? 1 : 0)) * G.shardMul);
+            // ~5% allowed luck: occasional bonus shard (never harmful)
+            if (Math.random() < LUCK_RATE) gain += 2;
             G.shards += Math.max(1, gain);
             G.waveInStage++;
             addParts(G.px, G.py, R.type === "BOSS" ? "#e3b341" :
@@ -427,28 +456,36 @@
   function draw() {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    if (G.shake > 0.4)
-      ctx.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake);
+    if (G.shake > 0.4)   // gentler shake (feedback: visually tiring)
+      ctx.translate((Math.random() - .5) * G.shake * 0.55,
+                    (Math.random() - .5) * G.shake * 0.55);
 
     // arena
     ctx.beginPath(); ctx.arc(CX, CY, AR, 0, TAU);
     ctx.strokeStyle = "rgba(139,148,158,0.22)"; ctx.lineWidth = 2; ctx.stroke();
 
     if (G.screen === "playing" || G.screen === "over" || G.screen === "upgrade") {
+      // only the imminent ring is bright; far rings fade out (less dizzying)
+      var pR = dist(G.px, G.py, CX, CY);
       for (var i = 0; i < G.rings.length; i++) {
         var R = G.rings[i];
         if (R.r < 4) continue;
+        var near = Math.abs(R.r - pR);
+        var a = near < 70 ? 1 : Math.max(0.18, 1 - (near - 70) / 320);
         var col = R.type === "BOSS" ? "#e3b341" :
           R.type === "MINI" ? "#a371f7" : "#58a6ff";
-        ctx.strokeStyle = col; ctx.lineWidth = RING_TH;
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = col; ctx.lineWidth = near < 70 ? RING_TH : 5;
         ctx.beginPath();
         ctx.arc(CX, CY, R.r, R.gapA + R.gapW, R.gapA - R.gapW + TAU);
         ctx.stroke();
-        // gap edge telegraph
-        ctx.strokeStyle = "rgba(63,185,80,0.7)"; ctx.lineWidth = 2;
+        // gap edge telegraph — only emphasized when the ring is imminent
+        ctx.globalAlpha = a * (near < 70 ? 0.85 : 0.4);
+        ctx.strokeStyle = "#3fb950"; ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(CX, CY, R.r, R.gapA - R.gapW, R.gapA + R.gapW);
         ctx.stroke();
+        ctx.globalAlpha = 1;
       }
       // player
       ctx.fillStyle = "#fff";
@@ -490,9 +527,11 @@
     enterStage: enterStage, stageType: stageType, ringSpeed: ringSpeed,
     gapW: gapW, gapRot: gapRot, ringGap: ringGap, spawnRing: spawnRing,
     angNorm: angNorm, angIn: angIn, dist: dist,
+    rollOffers: rollOffers, POOL: POOL,
     arena: function () { return { CX: CX, CY: CY, AR: AR }; },
     consts: { RING_TH: RING_TH, WAVES_PER_STAGE: WAVES_PER_STAGE,
-      BOSS_HP: BOSS_HP, BASE_VMAX: BASE_VMAX, PR_BASE: PR_BASE }
+      BOSS_HP: BOSS_HP, BASE_VMAX: BASE_VMAX, PR_BASE: PR_BASE,
+      LUCK_RATE: LUCK_RATE }
   };
 
   loop();
