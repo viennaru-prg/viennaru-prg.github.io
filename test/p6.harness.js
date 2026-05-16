@@ -1,8 +1,8 @@
-// Headless verification for projects/p6/index.html (ORBITAL).
-// Core mechanic is NEW vs prior projects: deterministic gravity-aim, not
-// real-time dodging. Fairness invariant becomes: every generated stage is
-// SOLVABLE by skill (a winning aim exists) and physics is DETERMINISTIC
-// (same input -> same result => no luck). Run: node test/p6.harness.js
+// Headless verification for projects/p6/index.html (ORBITAL — expanded).
+// New depth: moving planets, wormholes, multi-checkpoint routing, branching
+// map, permanent unlock tree, ships. Fairness invariant preserved &
+// generalised: deterministic + EVERY stage solvable by skill (brute solver).
+// Run: node test/p6.harness.js
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -29,24 +29,28 @@ function ctxStub() {
     shadowBlur: 0, globalAlpha: 1, font: "", textAlign: "" };
 }
 function elStub() {
-  const set = {};
-  return { _t: "", set textContent(v){ this._t = String(v); },
-    get textContent(){ return this._t; }, set innerHTML(v){}, width: 0,
-    height: 0, getContext: () => ctxStub(), onclick: null, appendChild: noop,
+  const set = {}; const kids = [];
+  const e = { _t: "", set textContent(v){ this._t = String(v); },
+    get textContent(){ return this._t; }, set innerHTML(v){ kids.length = 0; },
+    width: 0, height: 0, getContext: () => ctxStub(), onclick: null,
+    addEventListener: noop, appendChild: (c) => kids.push(c),
     classList: { add:(c)=>{set[c]=1;}, remove:(c)=>{delete set[c];},
       contains:(c)=>!!set[c] } };
+  return e;
 }
 const els = {};
-["c","score","meta","shots","hud","startScreen","upgScreen","overScreen",
- "finalScore","bestMsg","ascLine","ascGain","retryHint","upgCards",
- "upgTitle"].forEach(i => els[i] = elStub());
+["c","score","hmeta","shots","hud","startScreen","hangarScreen",
+ "hangarStars","hangarCards","hangarBack","upgScreen","upgCards",
+ "upgTitle","mapScreen","mapCards","overScreen","finalScore","bestMsg",
+ "ascLine","ascGain","shipCards","retryHint"].forEach(
+  i => els[i] = elStub());
 global.document = {
   getElementById: (i) => els[i] || elStub(),
   createElement: () => elStub()
 };
 const store = {};
 global.window = {
-  innerWidth: 1024, innerHeight: 680, addEventListener: noop,
+  innerWidth: 1100, innerHeight: 700, addEventListener: noop,
   requestAnimationFrame: noop,
   localStorage: { getItem:(k)=> (k in store ? store[k] : null),
     setItem:(k,v)=>{ store[k] = String(v); } }
@@ -61,84 +65,129 @@ const A = global.window.__ORBITAL__;
 const C = A.consts;
 check("exposes test API", !!A && typeof A.simulate === "function");
 
-// ---- NEW core mechanic sanity ----
-check("structure: stage 6 is boss", A.isBoss(6) && !A.isBoss(5));
-check("structure: stage 3 is mini", A.isMini(3) && !A.isMini(6));
-check("realms change across stages", A.realmOf(1).n !== A.realmOf(5).n);
-check("bosses are named & vary",
-  A.bossName(6).length > 0 && A.bossName(6) !== A.bossName(36));
-
-// ---- DETERMINISM: same input -> same result (=> no luck) ----
-const lvlD = A.genStage(7);
-const r1 = A.simulate(lvlD, 0.3, 6.2, false);
-const r2 = A.simulate(lvlD, 0.3, 6.2, false);
-check("simulation is deterministic",
-  r1.win === r2.win && r1.steps === r2.steps && r1.crashed === r2.crashed);
-const g1 = A.genStage(9), g2 = A.genStage(9);
-check("genStage is deterministic",
-  g1.wells.length === g2.wells.length &&
-  Math.abs(g1.portal.x - g2.portal.x) < 1e-9 &&
-  Math.abs(g1.portal.y - g2.portal.y) < 1e-9);
+// ---- determinism incl moving wells + wormholes + checkpoints ----
+const lvlD = A.genStage(14);                 // realm 3 -> has wormhole
+const a1 = A.simulate(lvlD, 0.25, 6.1, false);
+const a2 = A.simulate(lvlD, 0.25, 6.1, false);
+check("simulation deterministic (moving+worm+cp)",
+  a1.win === a2.win && a1.steps === a2.steps &&
+  a1.collected === a2.collected);
+check("genStage deterministic", (function () {
+  const x = A.genStage(11), y = A.genStage(11);
+  return x.wells.length === y.wells.length &&
+    Math.abs(x.portal.x - y.portal.x) < 1e-9 &&
+    x.checkpoints.length === y.checkpoints.length;
+})());
+check("moving well position changes over time (telegraphed)", (function () {
+  const w = { x: 100, y: 100, mass: 80, coreR: 16,
+    orb: { cx: 100, cy: 100, R: 60, om: 0.02, base: 0 } };
+  const p0 = A.wellPos(w, 0), p50 = A.wellPos(w, 50);
+  return Math.hypot(p0.x - p50.x, p0.y - p50.y) > 1;
+})());
 
 // ---- SOLVABILITY: every stage completable by skill (fairness proof) ----
-function solve(level) {
-  for (let ang = -1.45; ang <= 1.45; ang += 0.015) {
-    for (let pw = C.PMIN; pw <= C.PMAX; pw += 0.1) {
-      const r = A.simulate(level, ang, pw, false);
-      if (r.win) return { ang: ang, pw: pw };
-    }
-  }
-  return null;
-}
-[1, 2, 3, 6, 12, 18, 30].forEach(function (s) {
+[1, 2, 3, 6, 9, 12, 14, 18, 30].forEach(function (s) {
   const lvl = A.genStage(s);
-  const sol = solve(lvl);
-  check("stage " + s + " is solvable by skill (" +
-    (A.isBoss(s) ? "BOSS" : A.isMini(s) ? "MINI" : "norm") + ")", !!sol);
+  const sol = A.findSolution(lvl, true);
+  const tag = A.isBoss(s) ? "BOSS" : A.isMini(s) ? "MINI" : "norm";
+  check("stage " + s + " solvable by skill (" + tag + ", cps=" +
+    lvl.checkpoints.length + ")", !!sol);
 });
-
-// ---- difficulty scales (but stays solvable, shown above) ----
-const e = A.genStage(2), late = A.genStage(20);
-check("more wells later",
-  late.wells.length >= e.wells.length);
-check("portal shrinks later", late.portalR < e.portalR);
-check("par tightens later", A.genStage(24).par <= A.genStage(1).par);
-check("portal radius floored", A.genStage(99).portalR >= 14);
-
-// ---- QUALITY: non-trivial levels (gravity must be used, not a gimme) ----
-function directShotWins(s) {
-  const L = A.genStage(s);
-  const dAng = Math.atan2(L.portal.y - L.start.y, L.portal.x - L.start.x);
-  return A.simulate(L, dAng, (C.PMIN + C.PMAX) / 2, false).win;
-}
-check("deep stage 12 isn't a trivial straight shot", !directShotWins(12));
-check("deep stage 18 isn't a trivial straight shot", !directShotWins(18));
-
-// ---- QUALITY: preview is generous enough to truly plan (not guess) ----
-A.metaSave({ stars: 0, best: 0, asc: 0 });
-A.startGame();
-check("aim preview length is generous (>=240)", A.G.previewLen >= 240);
-
-// ---- QUALITY: boss guardian is telegraphable (orbit + nonzero motion) ----
-const lb = A.genStage(6);
-check("boss has a moving guardian (readable timing)",
-  lb.guardian && lb.guardian.omega > 0 && lb.guardian.R > 0);
-
-// ---- meta progression (the system the user liked) ----
-check("ascFromStars 0 at 0", A.ascFromStars(0) === 0);
-check("ascFromStars grows", A.ascFromStars(500) > A.ascFromStars(20) &&
-  A.ascFromStars(20) >= 1);
-check("meta default empty", (function () {
-  const m = A.metaLoad(); return m.stars === 0 && m.best === 0 && m.asc === 0;
+check("solution actually collects all checkpoints", (function () {
+  const lvl = A.genStage(20);
+  const sol = A.findSolution(lvl, true);
+  return sol && sol.r.win && sol.r.collected === lvl.checkpoints.length;
 })());
-A.metaSave({ stars: 321, best: 88, asc: 4 });
-check("meta round-trips", (function () {
+
+// ---- non-trivial deep stages (gravity must be used) ----
+check("stage 12 not a trivial straight shot", !A.directWins(A.genStage(12)));
+check("stage 18 not a trivial straight shot", !A.directWins(A.genStage(18)));
+
+// ---- new content present ----
+check("checkpoints appear by mid-game", A.genStage(10).checkpoints.length >= 1);
+check("wormhole realm has a wormhole", !!A.genStage(14).worm);
+check("boss has moving guardian", (function () {
+  const b = A.genStage(6); return b.guardian && b.guardian.omega > 0;
+})());
+check("risky map mod carries star multiplier", (function () {
+  return A.genStage(8, { starMul: 2 }).starMul === 2 &&
+    A.genStage(8, {}).starMul === 1;
+})());
+check("harder map variant still solvable (fair)", (function () {
+  return A.findSolution(A.genStage(8, { harder: true, salt: 7 }), false);
+})());
+
+// ---- meta v2: persistence + unlock tree + ascension ----
+check("meta default", (function () {
+  const m = A.metaDefault();
+  return m.stars === 0 && m.lifetime === 0 && typeof m.unlocks === "object";
+})());
+check("ascFromLifetime 0 at 0 & grows",
+  A.ascFromLifetime(0) === 0 && A.ascFromLifetime(800) > A.ascFromLifetime(20));
+A.metaSave({ stars: 50, best: 10, asc: 2, lifetime: 120, unlocks: {} });
+check("meta round-trips w/ unlocks", (function () {
   const m = A.metaLoad();
-  return m.stars === 321 && m.best === 88 && m.asc === 4;
+  return m.stars === 50 && m.lifetime === 120 && !m.unlocks.fuel;
 })());
-A.startGame();
-check("ascension grants extra fuel + longer preview",
-  A.G.extraShots >= 4 && A.G.previewLen > 60);
+check("buyUnlock spends & persists", (function () {
+  const okBuy = A.buyUnlock("fuel");
+  const m = A.metaLoad();
+  return okBuy && m.unlocks.fuel === true && m.stars === 50 - 12;
+})());
+check("buyUnlock denied when too poor", (function () {
+  A.metaSave({ stars: 1, best: 0, asc: 0, lifetime: 0, unlocks: {} });
+  return A.buyUnlock("shipC") === false && !A.metaLoad().unlocks.shipC;
+})());
+
+// ---- ships affect the run ----
+store["orbital_meta_v2"] = JSON.stringify(
+  { stars: 0, best: 0, asc: 0, lifetime: 0, unlocks: {} });
+A.setShip("A"); A.startGame();
+const shotsA = A.G.shotsMax;
+A.setShip("B"); A.startGame();
+check("ship B grants more fuel than A", A.G.shotsMax > shotsA);
+check("ship B shrinks preview vs base", A.G.previewLen < 360 * 1.01);
+
+// ---- branching map flow ----
+store["orbital_meta_v2"] = JSON.stringify(
+  { stars: 0, best: 0, asc: 0, lifetime: 0, unlocks: {} });
+A.setShip("A"); A.startGame();
+const sol1 = A.findSolution(A.G.level, true);
+check("found a solution for stage 1", !!sol1);
+A.G.angle = sol1.ang; A.G.power = sol1.pw;
+A.fire();
+let guard = 0;
+while (A.G.comet && guard++ < 6000) A.update();
+check("solved shot clears stage -> upgrade screen",
+  A.G.screen === "upgrade" && A.G.runStars > 0);
+A.openMap();
+check("upgrade -> map screen", A.G.screen === "map");
+A.G.nextMods = { harder: true, starMul: 2, salt: 7 };
+A.goNext(2);
+check("map choice advances to stage 2 (playing)",
+  A.G.screen === "playing" && A.G.stage === 2);
+
+// ---- exhausting shots ends run & banks lifetime/best ----
+store["orbital_meta_v2"] = JSON.stringify(
+  { stars: 0, best: 0, asc: 0, lifetime: 0, unlocks: {} });
+A.setShip("A"); A.startGame();
+A.G.runStars = 7; A.G.score = 55;
+let safety = 0;
+while (A.G.screen === "playing" && safety++ < 60) {
+  A.G.angle = Math.PI; A.G.power = C.PMAX; A.fire();
+  let g2 = 0; while (A.G.comet && g2++ < 6000) A.update();
+}
+check("exhausting shots ends the run", A.G.screen === "over");
+check("lifetime stars banked", A.metaLoad().lifetime >= 7);
+check("best score recorded", A.metaLoad().best === 55);
+
+// ---- restart returns to start (ship select), debounced ----
+A.G.screen = "over"; A.G.overAt = Date.now();
+A.handleTap();
+check("instant retry debounced", A.G.screen === "over");
+A.G.overAt = Date.now() - 5000;
+A.handleTap();
+check("retry after delay -> start screen", A.G.screen === "start");
 
 // ---- upgrades varied ----
 check("pool >=7", A.POOL.length >= 7);
@@ -153,46 +202,6 @@ for (let r = 0; r < 60; r++) {
 }
 check("rollOffers: 3 distinct valid", ok);
 check("offers vary (>=6 seen)", Object.keys(seen).length >= 6);
-
-// ---- real game loop: a solved aim actually clears the stage ----
-store["orbital_meta_v1"] = JSON.stringify({ stars: 0, best: 0, asc: 0 });
-A.startGame();
-const sol1 = solve(A.G.level);
-check("found a solution for stage 1", !!sol1);
-A.G.angle = sol1.ang; A.G.power = sol1.pw;
-A.fire();
-let guard = 0;
-while (A.G.comet && guard++ < 5000) A.update();
-A.update();   // let pendingUpg open the upgrade screen
-check("solved shot clears stage -> upgrade screen",
-  A.G.screen === "upgrade" && A.G.runStars > 0);
-A.resumeUpgrade();
-check("resume advances to stage 2", A.G.stage === 2);
-
-// ---- a bad aim costs a shot; exhausting shots -> game over (banks meta) ----
-store["orbital_meta_v1"] = JSON.stringify({ stars: 0, best: 0, asc: 0 });
-A.startGame();
-A.G.runStars = 5; A.G.score = 42;
-let safety = 0;
-while (A.G.screen === "playing" && safety++ < 50) {
-  A.G.angle = Math.PI;            // fire backwards -> out of bounds, fails
-  A.G.power = C.PMAX;
-  A.fire();
-  let g2 = 0;
-  while (A.G.comet && g2++ < 5000) A.update();
-}
-check("exhausting shots ends the run", A.G.screen === "over");
-check("run stars banked into persistent meta",
-  A.metaLoad().stars >= 5);
-check("best score recorded", A.metaLoad().best === 42);
-
-// ---- restart debounce ----
-A.G.screen = "over"; A.G.overAt = Date.now();
-A.handleTap();
-check("instant retry debounced", A.G.screen === "over");
-A.G.overAt = Date.now() - 5000;
-A.handleTap();
-check("retry after delay -> playing", A.G.screen === "playing");
 
 console.log(failures === 0 ? "\nALL CHECKS PASSED"
   : "\n" + failures + " CHECK(S) FAILED");

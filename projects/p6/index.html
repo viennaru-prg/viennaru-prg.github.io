@@ -6,7 +6,7 @@
 <title>ORBITAL — 프로젝트 6</title>
 <style>
   html, body {
-    margin: 0; height: 100%; overflow: hidden; background: #05060c;
+    margin: 0; height: 100%; overflow: hidden; background: #04050b;
     font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
     -webkit-tap-highlight-color: transparent; user-select: none;
   }
@@ -14,32 +14,34 @@
   .layer {
     position: fixed; inset: 0; pointer-events: none; display: flex;
     flex-direction: column; align-items: center; justify-content: center;
-    gap: 14px; color: #e6edf3; text-align: center; padding: 24px; box-sizing: border-box;
+    gap: 12px; color: #e6edf3; text-align: center; padding: 22px; box-sizing: border-box;
   }
-  .hud { justify-content: flex-start; padding-top: 16px; }
-  .hud .score { font-size: 38px; font-weight: 800; }
+  .hud { justify-content: flex-start; padding-top: 14px; }
+  .hud .score { font-size: 36px; font-weight: 800; }
   .hud .meta { font-size: 13px; color: #9aa4b2; margin-top: 2px; }
-  .hud .shots { font-size: 15px; color: #f0883e; font-weight: 700; margin-top: 3px; height: 18px; }
+  .hud .shots { font-size: 14px; color: #f0883e; font-weight: 700; margin-top: 3px; }
   h1 {
-    font-size: clamp(42px, 13vw, 88px); margin: 0; letter-spacing: 9px;
+    font-size: clamp(40px, 12vw, 84px); margin: 0; letter-spacing: 8px;
     background: linear-gradient(90deg, #58a6ff, #39d353, #e3b341);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .layer p { color: #9aa4b2; margin: 0; font-size: 15px; max-width: 520px; }
-  .asc { color: #e3b341; font-size: 14px; font-weight: 700; }
-  .big { font-size: 26px; color: #e6edf3; font-weight: 700; }
-  .tap { margin-top: 8px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
+  .layer p { color: #9aa4b2; margin: 0; font-size: 14px; max-width: 540px; }
+  .asc { color: #e3b341; font-size: 13px; font-weight: 700; }
+  .big { font-size: 24px; color: #e6edf3; font-weight: 700; }
+  .tap { margin-top: 6px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
   @keyframes blink { 50% { opacity: .35; } }
-  .cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; pointer-events: auto; }
-  .upg {
-    width: 172px; background: #11161f; border: 1px solid #2b3240;
-    border-radius: 12px; padding: 15px; cursor: pointer; color: #e6edf3;
+  .cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+    pointer-events: auto; max-width: 760px; }
+  .card {
+    width: 168px; background: #11161f; border: 1px solid #2b3240;
+    border-radius: 12px; padding: 14px; cursor: pointer; color: #e6edf3;
     transition: border-color .12s, transform .12s;
   }
-  .upg:hover { border-color: #58a6ff; transform: translateY(-3px); }
-  .upg b { font-size: 15px; } .upg span { color: #9aa4b2; font-size: 12.5px; }
+  .card:hover { border-color: #58a6ff; transform: translateY(-3px); }
+  .card.lock { opacity: .5; }
+  .card b { font-size: 14px; } .card span { color: #9aa4b2; font-size: 12px; }
   .home {
-    position: fixed; left: 16px; bottom: 14px; font-size: 13px;
+    position: fixed; left: 14px; bottom: 12px; font-size: 12px;
     color: #9aa4b2; text-decoration: none; z-index: 9; pointer-events: auto;
   }
   .home:hover { color: #58a6ff; }
@@ -51,25 +53,39 @@
 
   <div class="layer hud hidden" id="hud">
     <div class="score" id="score">0</div>
-    <div class="meta" id="meta"></div>
+    <div class="meta" id="hmeta"></div>
     <div class="shots" id="shots"></div>
   </div>
 
   <div class="layer" id="startScreen">
     <h1>ORBITAL</h1>
-    <p>혜성을 <b>드래그로 조준</b>(방향·세기)해 발사하세요. 행성 중력이
-       궤도를 휩니다. 점선 예측 경로를 보고 <b>포탈</b>에 명중시키면 클리어.
-       같은 조준은 항상 같은 결과 — 운이 아니라 계산과 실력입니다.</p>
-    <p>여러 영역과 네임드 보스. 모은 별은 사라지지 않고 누적되어
-       다음 항해를 강하게 합니다(승천).</p>
+    <p>혜성을 <b>드래그로 조준</b>(방향·세기)해 발사. 행성 중력이 궤도를
+       휩니다. 점선 예측선을 보고 <b>체크포인트</b>를 모두 지나 <b>포탈</b>로.
+       같은 조준=같은 결과 — 운이 아니라 계산과 실력.</p>
+    <p>움직이는 행성·웜홀·분기 경로·함선·영구 해금. 모은 별은 사라지지
+       않고 누적되어 항해를 강하게 합니다.</p>
     <div class="asc" id="ascLine"></div>
-    <div class="tap">화면을 탭하면 시작</div>
+    <div class="cards" id="shipCards"></div>
+    <div class="tap">함선을 고르면 시작</div>
+  </div>
+
+  <div class="layer hidden" id="hangarScreen">
+    <div class="big">격납고 — 영구 해금 (누적 별 소비)</div>
+    <p id="hangarStars"></p>
+    <div class="cards" id="hangarCards"></div>
+    <div class="tap" id="hangarBack">▶ 닫기</div>
   </div>
 
   <div class="layer hidden" id="upgScreen">
     <div class="big" id="upgTitle">강화 선택</div>
-    <p>별로 강화 (매번 무작위 3종)</p>
+    <p>이번 항해 강화 (매번 무작위 3종)</p>
     <div class="cards" id="upgCards"></div>
+  </div>
+
+  <div class="layer hidden" id="mapScreen">
+    <div class="big">경로 선택</div>
+    <p>다음 항로를 고르세요 — 위험할수록 보상이 큽니다</p>
+    <div class="cards" id="mapCards"></div>
   </div>
 
   <div class="layer hidden" id="overScreen">
@@ -87,31 +103,30 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var canvas = $("c"), ctx = canvas.getContext("2d");
-  var scoreEl = $("score"), metaEl = $("meta"), shotsEl = $("shots"),
-      hud = $("hud"), startScreen = $("startScreen"),
-      upgScreen = $("upgScreen"), overScreen = $("overScreen"),
+  var hud = $("hud"), scoreEl = $("score"), hmetaEl = $("hmeta"),
+      shotsEl = $("shots"), startScreen = $("startScreen"),
+      hangarScreen = $("hangarScreen"), hangarStars = $("hangarStars"),
+      hangarCards = $("hangarCards"), hangarBack = $("hangarBack"),
+      upgScreen = $("upgScreen"), upgCards = $("upgCards"),
+      upgTitle = $("upgTitle"), mapScreen = $("mapScreen"),
+      mapCards = $("mapCards"), overScreen = $("overScreen"),
       finalScore = $("finalScore"), bestMsg = $("bestMsg"),
-      ascLine = $("ascLine"), ascGain = $("ascGain"),
-      upgCards = $("upgCards"), upgTitle = $("upgTitle");
+      ascLine = $("ascLine"), ascGain = $("ascGain"), shipCards = $("shipCards");
 
-  // ---- fixed virtual world (determinism independent of screen) ----
-  var VW = 1000, VH = 640;
-  var VIEW = { s: 1, ox: 0, oy: 0 };
-  var W, H;
+  // fixed virtual world -> deterministic regardless of screen
+  var VW = 1000, VH = 640, VIEW = { s: 1, ox: 0, oy: 0 }, W, H;
   function resize() {
     W = canvas.width = window.innerWidth;
     H = canvas.height = window.innerHeight;
     var s = Math.min(W / VW, H / VH);
     VIEW.s = s; VIEW.ox = (W - VW * s) / 2; VIEW.oy = (H - VH * s) / 2;
   }
-  window.addEventListener("resize", resize);
-  resize();
+  window.addEventListener("resize", resize); resize();
   function sx(x) { return VIEW.ox + x * VIEW.s; }
   function sy(y) { return VIEW.oy + y * VIEW.s; }
-  function wx(px) { return (px - VIEW.ox) / VIEW.s; }
-  function wy(py) { return (py - VIEW.oy) / VIEW.s; }
+  function wx(p) { return (p - VIEW.ox) / VIEW.s; }
+  function wy(p) { return (p - VIEW.oy) / VIEW.s; }
 
-  // ---- procedural audio (guarded/optional) ----
   var AC = null;
   function beep(f, d, t, v) {
     try {
@@ -127,7 +142,6 @@
     } catch (e) {}
   }
 
-  // ---- seeded PRNG (stages are deterministic -> skill, not luck) ----
   function mulberry32(a) {
     return function () {
       a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -137,53 +151,169 @@
     };
   }
 
-  // ---- meta progression (persists across runs) ----
-  var META_KEY = "orbital_meta_v1";
+  // ---------- persistent meta (career, asc, unlock tree, ships) ----------
+  var META_KEY = "orbital_meta_v2";
+  var UNLOCKS = [
+    { k: "fuel", t: "보조 연료고", d: "모든 항해 발사 +1", cost: 12 },
+    { k: "prev", t: "장거리 센서", d: "예측선 +50%", cost: 10 },
+    { k: "magnet", t: "포탈 자력", d: "포탈 판정 +12%", cost: 16 },
+    { k: "shipB", t: "함선 B 해금", d: "지구력형", cost: 20 },
+    { k: "shipC", t: "함선 C 해금", d: "정밀형", cost: 28 }
+  ];
+  function metaDefault() {
+    return { stars: 0, best: 0, asc: 0, lifetime: 0, unlocks: {} };
+  }
   function metaLoad() {
     try {
       var m = JSON.parse(window.localStorage.getItem(META_KEY));
-      if (m && typeof m === "object")
-        return { stars: m.stars | 0, best: m.best | 0, asc: m.asc | 0 };
+      if (m && typeof m === "object") {
+        return { stars: m.stars | 0, best: m.best | 0, asc: m.asc | 0,
+          lifetime: m.lifetime | 0, unlocks: m.unlocks || {} };
+      }
     } catch (e) {}
-    return { stars: 0, best: 0, asc: 0 };
+    return metaDefault();
   }
   function metaSave(m) {
     try { window.localStorage.setItem(META_KEY, JSON.stringify(m)); } catch (e) {}
   }
-  function ascFromStars(s) {
-    var a = 0, need = 9, acc = 0;
-    while (s >= acc + need) { acc += need; a++; need += 6; }
+  function ascFromLifetime(s) {
+    var a = 0, need = 10, acc = 0;
+    while (s >= acc + need) { acc += need; a++; need += 7; }
     return a;
   }
+  function buyUnlock(k) {
+    var m = metaLoad(), u = null, i;
+    for (i = 0; i < UNLOCKS.length; i++) if (UNLOCKS[i].k === k) u = UNLOCKS[i];
+    if (!u || m.unlocks[k] || m.stars < u.cost) return false;
+    m.stars -= u.cost; m.unlocks[k] = true; metaSave(m); return true;
+  }
 
-  // ---- realms & bosses ----
+  var SHIPS = {
+    A: { name: "균형 (A)", shots: 0, prevMul: 1.0, magnet: 1.0, need: null },
+    B: { name: "지구력 (B)", shots: 2, prevMul: 0.8, magnet: 1.0, need: "shipB" },
+    C: { name: "정밀 (C)", shots: -1, prevMul: 1.0, magnet: 1.18, need: "shipC" }
+  };
+
+  // ---------- realms / bosses ----------
   var REALMS = [
     { n: "내행성 궤도", c: "#58a6ff", bg: "#060a14", f: "고요한 첫 항로." },
     { n: "소행성대", c: "#f0883e", bg: "#140c06", f: "암석이 길을 막는다." },
     { n: "거성의 그늘", c: "#a371f7", bg: "#0d0814", f: "거대한 중력의 춤." },
-    { n: "혜성의 강", c: "#39d353", bg: "#06140b", f: "흐름을 읽어라." },
+    { n: "웜홀 성운", c: "#39d353", bg: "#06140b", f: "공간이 접힌다." },
     { n: "은하 가장자리", c: "#e3b341", bg: "#141006", f: "미지의 끝." }
   ];
-  function realmOf(stage) { return REALMS[Math.floor((stage - 1) / 4) % REALMS.length]; }
+  function realmOf(s) { return REALMS[Math.floor((s - 1) / 4) % REALMS.length]; }
   var BOSSES = ["타이탄", "에레보스", "헬리오스", "카론", "안드로메다",
     "보이드", "퀘이사", "싱귤러"];
-  function bossName(stage) { return BOSSES[(Math.floor(stage / 6) - 1) % BOSSES.length] || "싱귤러"; }
-  function isBoss(stage) { return stage % 6 === 0; }
-  function isMini(stage) { return stage % 6 !== 0 && stage % 3 === 0; }
+  function bossName(s) { return BOSSES[(Math.floor(s / 6) - 1) % BOSSES.length] || "싱귤러"; }
+  function isBoss(s) { return s % 6 === 0; }
+  function isMini(s) { return s % 6 !== 0 && s % 3 === 0; }
 
-  // ---- physics constants (deterministic simulation) ----
+  // ---------- physics ----------
   var DT = 1, GK = 0.42, EPS2 = 240, COMET_R = 6;
-  var MAXSTEPS = 900, PMIN = 3.0, PMAX = 9.5;
+  var MAXSTEPS = 1000, PMIN = 3.0, PMAX = 9.5;
+  function bossHits(s) { return isBoss(s) ? 3 : 1; }
 
-  function bossHits(stage) { return isBoss(stage) ? 3 : 1; }
+  function wellPos(w, step) {
+    if (!w.orb) return { x: w.x, y: w.y };
+    var a = w.orb.base + step * w.orb.om;
+    return { x: w.orb.cx + Math.cos(a) * w.orb.R,
+             y: w.orb.cy + Math.sin(a) * w.orb.R };
+  }
 
-  // coarse deterministic solver: does ANY aim win? (used to GUARANTEE every
-  // generated stage is completable by skill — the fairness invariant)
-  function findSolution(lvl) {
-    for (var ang = -1.4; ang <= 1.4; ang += 0.05)
-      for (var pw = PMIN; pw <= PMAX; pw += 0.3)
-        if (simulate(lvl, ang, pw, false).win) return true;
-    return false;
+  // PURE deterministic simulation (single source of truth for game+solver+gen)
+  // win requires ALL checkpoints collected, then portal reached.
+  function simulate(lvl, angle, power, wantPath) {
+    var x = lvl.start.x, y = lvl.start.y;
+    var vx = Math.cos(angle) * power, vy = Math.sin(angle) * power;
+    var pts = wantPath ? [{ x: x, y: y, cp: 0 }] : null;
+    var cps = lvl.checkpoints || [];
+    var got = 0, need = cps.length, assists = 0, i, wp;
+    var wormDelay = 0;
+    for (var s = 1; s <= MAXSTEPS; s++) {
+      var ax = 0, ay = 0;
+      for (i = 0; i < lvl.wells.length; i++) {
+        wp = wellPos(lvl.wells[i], s);
+        var dx = wp.x - x, dy = wp.y - y;
+        var r2 = dx * dx + dy * dy + EPS2;
+        var inv = GK * lvl.wells[i].mass / (r2 * Math.sqrt(r2));
+        ax += dx * inv; ay += dy * inv;
+        if (r2 < 9000) assists++;            // grazed a gravity field
+      }
+      vx += ax * DT; vy += ay * DT;
+      x += vx * DT; y += vy * DT;
+      if (wantPath && s % 3 === 0) pts.push({ x: x, y: y, cp: got });
+
+      // wormholes (deterministic teleport, momentum kept)
+      if (wormDelay > 0) wormDelay--;
+      if (lvl.worm && wormDelay === 0) {
+        var wq = lvl.worm;
+        if ((x - wq.ax) * (x - wq.ax) + (y - wq.ay) * (y - wq.ay)
+            <= wq.r * wq.r) {
+          x = wq.bx; y = wq.by; wormDelay = 20;
+        } else if ((x - wq.bx) * (x - wq.bx) + (y - wq.by) * (y - wq.by)
+            <= wq.r * wq.r) {
+          x = wq.ax; y = wq.ay; wormDelay = 20;
+        }
+      }
+      // checkpoints (must collect all before portal counts)
+      for (i = 0; i < cps.length; i++) {
+        if (!cps[i]._k) {
+          var cdx = x - cps[i].x, cdy = y - cps[i].y;
+          if (cdx * cdx + cdy * cdy <=
+              (cps[i].r + COMET_R) * (cps[i].r + COMET_R)) {
+            cps[i]._k = true; got++;
+          }
+        }
+      }
+      // portal
+      if (lvl.portal && got >= need) {
+        var pdx = x - lvl.portal.x, pdy = y - lvl.portal.y;
+        if (pdx * pdx + pdy * pdy <=
+            (lvl.portal.r + COMET_R) * (lvl.portal.r + COMET_R)) {
+          for (i = 0; i < cps.length; i++) cps[i]._k = false;
+          return { win: true, steps: s, crashed: false, pts: pts,
+            collected: got, assists: assists };
+        }
+      }
+      if (x < -40 || x > VW + 40 || y < -40 || y > VH + 40) break;
+      for (i = 0; i < lvl.wells.length; i++) {
+        wp = wellPos(lvl.wells[i], s);
+        if (Math.hypot(x - wp.x, y - wp.y) < lvl.wells[i].coreR + COMET_R) {
+          for (var z = 0; z < cps.length; z++) cps[z]._k = false;
+          return { win: false, steps: s, crashed: true, pts: pts,
+            collected: got, assists: assists };
+        }
+      }
+      for (i = 0; i < lvl.hazards.length; i++)
+        if (Math.hypot(x - lvl.hazards[i].x, y - lvl.hazards[i].y)
+            < lvl.hazards[i].r + COMET_R) {
+          for (var z2 = 0; z2 < cps.length; z2++) cps[z2]._k = false;
+          return { win: false, steps: s, crashed: true, pts: pts,
+            collected: got, assists: assists };
+        }
+      if (lvl.guardian) {
+        var gd = lvl.guardian, ga = gd.base + s * gd.omega;
+        if (Math.hypot(x - (gd.cx + Math.cos(ga) * gd.R),
+            y - (gd.cy + Math.sin(ga) * gd.R)) < gd.r + COMET_R) {
+          for (var z3 = 0; z3 < cps.length; z3++) cps[z3]._k = false;
+          return { win: false, steps: s, crashed: true, pts: pts,
+            collected: got, assists: assists };
+        }
+      }
+    }
+    for (i = 0; i < cps.length; i++) cps[i]._k = false;
+    return { win: false, steps: MAXSTEPS, crashed: false, pts: pts,
+      collected: got, assists: assists };
+  }
+
+  function findSolution(lvl, wantAim) {
+    for (var ang = -1.45; ang <= 1.45; ang += 0.045)
+      for (var pw = PMIN; pw <= PMAX; pw += 0.28) {
+        var r = simulate(lvl, ang, pw, wantAim);
+        if (r.win) return wantAim ? { ang: ang, pw: pw, r: r } : true;
+      }
+    return wantAim ? null : false;
   }
   function directWins(lvl) {
     var a = Math.atan2(lvl.portal.y - lvl.start.y,
@@ -191,224 +321,213 @@
     return simulate(lvl, a, (PMIN + PMAX) / 2, false).win;
   }
 
-  // Constructive generation: blockers are placed ON the straight line so a
-  // naive shot FAILS (gravity must be used), then we VERIFY a solution
-  // exists and self-adjust until BOTH hold -> non-trivial AND fair.
-  function genStage(stage) {
-    var rnd = mulberry32(0x9E37 + stage * 2654435761);
+  // ---------- constructive generation (non-trivial AND provably solvable) ----
+  function genStage(stage, mods) {
+    mods = mods || {};
+    var rnd = mulberry32(0x9E37 + stage * 2654435761 + (mods.salt || 0));
     var realm = Math.floor((stage - 1) / 4);
     var boss = isBoss(stage), mini = isMini(stage);
-    var nExtra = Math.min(Math.floor((stage - 1) / 2), 5) + (boss ? 1 : 0);
+    var extra = (mods.harder ? 1 : 0);
+    var nExtra = Math.min(Math.floor((stage - 1) / 2), 5) + (boss ? 1 : 0) + extra;
     var nHaz = Math.min(1 + Math.floor((stage - 1) / 3), 5) +
-      (boss ? 2 : mini ? 1 : 0);
+      (boss ? 2 : mini ? 1 : 0) + extra;
+    var nCp = Math.min(1 + Math.floor(stage / 5), 3);
     var start = { x: 72, y: VH / 2 + (rnd() * 2 - 1) * 150 };
     var portR = Math.max(15, 34 - stage * 0.7) + (boss ? 2 : 0);
     var portal = { x: VW * 0.62 + rnd() * (VW * 0.30),
       y: 90 + rnd() * (VH - 180), r: portR };
     var lvl = { stage: stage, start: start, wells: [], hazards: [],
-      portal: portal, portalR: portR,
+      checkpoints: [], worm: null, portal: portal, portalR: portR,
       par: Math.max(2, 6 - Math.floor(stage / 4)), boss: boss, mini: mini,
-      hits: bossHits(stage), guardian: null, realm: realm };
+      hits: bossHits(stage), guardian: null, realm: realm,
+      starMul: mods.starMul || 1 };
 
-    function onLine(t, perp) {                 // point along start->portal
+    function onLine(t, perp) {
       return { x: start.x + (portal.x - start.x) * t -
                  (portal.y - start.y) / VH * perp,
                y: start.y + (portal.y - start.y) * t +
                  (portal.x - start.x) / VW * perp };
     }
-    // primary blocker right on the path -> straight shot can't just sail in
     var bp = onLine(0.48 + rnd() * 0.12, (rnd() * 2 - 1) * 40);
-    var blocker = { x: bp.x, y: bp.y,
-      mass: 150 + stage * 14, coreR: 17 + rnd() * 8 };
+    var blocker = { x: bp.x, y: bp.y, mass: 150 + stage * 14,
+      coreR: 17 + rnd() * 8 };
     lvl.wells.push(blocker);
     var i, p;
     for (i = 0; i < nExtra; i++) {
-      p = onLine(0.25 + rnd() * 0.6, (rnd() * 2 - 1) * 180);
-      lvl.wells.push({ x: Math.max(180, Math.min(VW - 80, p.x)),
-        y: Math.max(60, Math.min(VH - 60, p.y)),
-        mass: 70 + rnd() * (70 + stage * 6), coreR: 15 + rnd() * 9 });
+      p = onLine(0.22 + rnd() * 0.62, (rnd() * 2 - 1) * 185);
+      var w = { x: Math.max(170, Math.min(VW - 80, p.x)),
+        y: Math.max(56, Math.min(VH - 56, p.y)),
+        mass: 70 + rnd() * (70 + stage * 6), coreR: 14 + rnd() * 9 };
+      // moving planets from realm 3+ (telegraphed, deterministic)
+      if (realm >= 2 && rnd() < 0.5) {
+        w.orb = { cx: w.x, cy: w.y, R: 40 + rnd() * 70,
+          om: (rnd() < 0.5 ? -1 : 1) * (0.006 + rnd() * 0.01),
+          base: rnd() * 6.28 };
+      }
+      lvl.wells.push(w);
     }
     for (i = 0; i < nHaz; i++) {
-      p = onLine(0.3 + rnd() * 0.5, (rnd() * 2 - 1) * 70);
-      lvl.hazards.push({ x: Math.max(160, Math.min(VW - 60, p.x)),
-        y: Math.max(50, Math.min(VH - 50, p.y)), r: 15 + rnd() * 15 });
+      p = onLine(0.3 + rnd() * 0.5, (rnd() * 2 - 1) * 72);
+      lvl.hazards.push({ x: Math.max(150, Math.min(VW - 55, p.x)),
+        y: Math.max(48, Math.min(VH - 48, p.y)), r: 15 + rnd() * 14 });
+    }
+    // wormhole pair in the worm-nebula realm (idx 3) and some boss stages
+    if (realm === 3 || (boss && rnd() < 0.5)) {
+      var wa = onLine(0.30, (rnd() * 2 - 1) * 120);
+      var wb = onLine(0.78, (rnd() * 2 - 1) * 120);
+      lvl.worm = { ax: wa.x, ay: wa.y, bx: wb.x, by: wb.y, r: 40 };
     }
     if (boss) lvl.guardian = { cx: portal.x - 150, cy: portal.y,
       R: 110, r: 22, omega: 0.012, base: rnd() * 6.28 };
 
-    // keep start & portal clear of cores/hazards
     function clearAround(cx, cy, pad) {
       for (var k = lvl.wells.length - 1; k >= 0; k--)
-        if (Math.hypot(cx - lvl.wells[k].x, cy - lvl.wells[k].y) <
-            lvl.wells[k].coreR + pad && lvl.wells[k] !== blocker)
-          lvl.wells.splice(k, 1);
+        if (lvl.wells[k] !== blocker &&
+            Math.hypot(cx - lvl.wells[k].x, cy - lvl.wells[k].y)
+            < lvl.wells[k].coreR + pad) lvl.wells.splice(k, 1);
       for (k = lvl.hazards.length - 1; k >= 0; k--)
-        if (Math.hypot(cx - lvl.hazards[k].x, cy - lvl.hazards[k].y) <
-            lvl.hazards[k].r + pad) lvl.hazards.splice(k, 1);
+        if (Math.hypot(cx - lvl.hazards[k].x, cy - lvl.hazards[k].y)
+            < lvl.hazards[k].r + pad) lvl.hazards.splice(k, 1);
     }
     clearAround(start.x, start.y, 70);
     clearAround(portal.x, portal.y, portR + 26);
 
-    // VERIFY + self-adjust: prioritise solvable; among solvable, push
-    // non-trivial. Deterministic (no rng here) -> stable, testable.
-    for (var it = 0; it < 30; it++) {
-      var solvable = findSolution(lvl);
-      if (!solvable) {                          // too hard -> ease off
+    // solve WITHOUT checkpoints, then place checkpoints ON the winning
+    // path -> the same aim collects them all then sinks: guaranteed solvable.
+    function placeCheckpoints() {
+      lvl.checkpoints = [];
+      var sol = findSolution(lvl, true);
+      if (!sol) return false;
+      var path = sol.r.pts;
+      if (path.length < nCp + 6) return true;     // solvable, no cps added
+      var cps = [];
+      for (var c = 1; c <= nCp; c++) {
+        var pp = path[Math.floor(path.length * c / (nCp + 1))];
+        cps.push({ x: pp.x, y: pp.y, r: 15, _k: false });
+      }
+      lvl.checkpoints = cps;
+      return findSolution(lvl, false);            // verify with cps
+    }
+
+    for (var it = 0; it < 32; it++) {
+      var solvable = placeCheckpoints();
+      if (!solvable) {
         for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.86;
         lvl.portal.r = Math.min(42, lvl.portal.r * 1.10);
         continue;
       }
-      if (!directWins(lvl)) break;              // solvable AND non-trivial
-      blocker.mass *= 1.20;                     // trivial -> beef the blocker
+      // routing (wormhole / 2+ checkpoints) is already non-trivial — don't
+      // beef the blocker into unsolvability.
+      if (!directWins(lvl) || lvl.worm || lvl.checkpoints.length >= 2) break;
+      blocker.mass *= 1.20;
       lvl.portal.r = Math.max(15, lvl.portal.r * 0.97);
     }
-    if (!findSolution(lvl)) {                    // absolute last resort
-      lvl.wells = [blocker]; lvl.hazards = [];
-      lvl.portal.r = Math.max(28, portR);
-      if (!findSolution(lvl)) { lvl.wells = []; lvl.portal.r = 34; }
+    if (!findSolution(lvl, false)) {            // ease before destroying content
+      for (var e2 = 0; e2 < 10 && !findSolution(lvl, false); e2++) {
+        for (i = 0; i < lvl.wells.length; i++) lvl.wells[i].mass *= 0.82;
+        lvl.portal.r = Math.min(46, lvl.portal.r * 1.12);
+      }
+      if (!findSolution(lvl, false)) {          // keep worm if it still works
+        lvl.hazards = []; lvl.checkpoints = []; lvl.wells = [blocker];
+        lvl.portal.r = Math.max(30, portR);
+        if (!findSolution(lvl, false)) {
+          lvl.worm = null; lvl.wells = []; lvl.portal.r = 36;
+        }
+      }
     }
     return lvl;
   }
-  function safeSpot(lvl, x, y, pad) {
-    var i;
-    for (i = 0; i < lvl.wells.length; i++)
-      if (Math.hypot(x - lvl.wells[i].x, y - lvl.wells[i].y)
-          < lvl.wells[i].coreR + pad) return false;
-    for (i = 0; i < lvl.hazards.length; i++)
-      if (Math.hypot(x - lvl.hazards[i].x, y - lvl.hazards[i].y)
-          < lvl.hazards[i].r + pad) return false;
-    return true;
-  }
 
-  // PURE deterministic simulation. same (lvl,angle,power) -> same result.
-  // returns { win, steps, crashed, pts:[{x,y}...] }
-  function simulate(lvl, angle, power, wantPath) {
-    var x = lvl.start.x, y = lvl.start.y;
-    var vx = Math.cos(angle) * power, vy = Math.sin(angle) * power;
-    var pts = wantPath ? [{ x: x, y: y }] : null;
-    for (var s = 1; s <= MAXSTEPS; s++) {
-      var ax = 0, ay = 0, i;
-      for (i = 0; i < lvl.wells.length; i++) {
-        var wgt = lvl.wells[i];
-        var dx = wgt.x - x, dy = wgt.y - y;
-        var r2 = dx * dx + dy * dy + EPS2;
-        var inv = GK * wgt.mass / (r2 * Math.sqrt(r2));
-        ax += dx * inv; ay += dy * inv;
-      }
-      vx += ax * DT; vy += ay * DT;
-      x += vx * DT; y += vy * DT;
-      if (wantPath && (s % 3 === 0)) pts.push({ x: x, y: y });
-
-      // portal hit -> win
-      if (lvl.portal) {
-        var pdx = x - lvl.portal.x, pdy = y - lvl.portal.y;
-        if (pdx * pdx + pdy * pdy <=
-            (lvl.portal.r + COMET_R) * (lvl.portal.r + COMET_R))
-          return { win: true, steps: s, crashed: false, pts: pts };
-      }
-      // out of bounds
-      if (x < -40 || x > VW + 40 || y < -40 || y > VH + 40)
-        return { win: false, steps: s, crashed: true, pts: pts };
-      // well core
-      for (i = 0; i < lvl.wells.length; i++)
-        if (Math.hypot(x - lvl.wells[i].x, y - lvl.wells[i].y)
-            < lvl.wells[i].coreR + COMET_R)
-          return { win: false, steps: s, crashed: true, pts: pts };
-      // static hazards
-      for (i = 0; i < lvl.hazards.length; i++)
-        if (Math.hypot(x - lvl.hazards[i].x, y - lvl.hazards[i].y)
-            < lvl.hazards[i].r + COMET_R)
-          return { win: false, steps: s, crashed: true, pts: pts };
-      // boss guardian (deterministic position by step count)
-      if (lvl.guardian) {
-        var g = lvl.guardian, ga = g.base + s * g.omega;
-        var gx = g.cx + Math.cos(ga) * g.R, gy = g.cy + Math.sin(ga) * g.R;
-        if (Math.hypot(x - gx, y - gy) < g.r + COMET_R)
-          return { win: false, steps: s, crashed: true, pts: pts };
-      }
-    }
-    return { win: false, steps: MAXSTEPS, crashed: false, pts: pts };
-  }
-
-  // ---- game state ----
+  // ---------- run state ----------
   var G = {
     screen: "start",
-    stage: 1, level: null, realm: REALMS[0],
+    stage: 1, level: null, realm: REALMS[0], ship: "A",
     score: 0, stars: 0, runStars: 0,
-    shots: 0, shotsMax: 0, hitsLeft: 1,
-    aiming: false, angle: 0, power: 6, previewLen: 60,
-    comet: null, parts: [], shotStars: 3,
-    meta: { stars: 0, best: 0, asc: 0 }, startAsc: 0,
+    shots: 0, shotsMax: 0, hitsLeft: 1, shotStars: 3, medals: 0,
+    angle: 0, power: 6, aiming: false, previewLen: 220, magnet: 1,
+    comet: null, parts: [], stars2: [],
+    meta: metaDefault(), startAsc: 0, extraShots: 0, scoreMul: 1,
+    nextMods: null, tick: 0, _pvKey: "", _pv: null,
     shake: 0, flash: 0, overAt: 0, banner: "", bsub: "", bannerT: 0,
-    pendingUpg: null, extraShots: 0, powerStep: 1,
-    tick: 0, _pvKey: "", _pv: null
+    softCore: 0, bonusStar: 0
   };
+  function bn(a, b) { G.banner = a; G.bsub = b || ""; G.bannerT = 110; }
 
-  function showBanner(a, b) { G.banner = a; G.bsub = b || ""; G.bannerT = 110; }
+  function effPortalR() {
+    return (G.level ? G.level.portal.r : 30) * G.magnet;
+  }
 
-  function loadStage(stage) {
+  function loadStage(stage, mods) {
     G.stage = stage;
-    G.level = genStage(stage);
+    G.level = genStage(stage, mods || {});
     G.realm = REALMS[G.level.realm % REALMS.length];
     G.hitsLeft = G.level.hits;
-    G.shotsMax = G.level.par + 3 + G.extraShots;
+    G.shotsMax = G.level.par + 3 + G.extraShots + SHIPS[G.ship].shots;
+    if (G.shotsMax < 2) G.shotsMax = 2;
     G.shots = G.shotsMax;
-    G.shotStars = 3;
-    G.comet = null; G.aiming = false;
-    G.angle = 0; G.power = (PMIN + PMAX) / 2;
-    if (G.level.boss) showBanner("👑 " + bossName(stage),
-      "보스 — " + G.level.hits + "회 명중");
-    else if (G.level.mini) showBanner("⚔ 정밀 구간", G.realm.f);
-    else if (stage === 1 || (stage - 1) % 4 === 0)
-      showBanner("◆ " + G.realm.n, G.realm.f);
+    G.shotStars = 3; G.comet = null; G.aiming = false;
+    G.angle = 0; G.power = (PMIN + PMAX) / 2; G._pvKey = "";
+    if (G.level.boss) bn("👑 " + bossName(stage), G.level.hits + "회 명중 · 가디언 주의");
+    else if (G.level.mini) bn("⚔ 정밀 구간", G.realm.f);
+    else if (stage === 1 || (stage - 1) % 4 === 0) bn("◆ " + G.realm.n, G.realm.f);
     paintHud();
   }
 
+  function applyMetaToRun() {
+    G.meta = metaLoad();
+    G.startAsc = G.meta.asc;
+    var un = G.meta.unlocks || {};
+    G.extraShots = Math.floor(G.startAsc) + (un.fuel ? 1 : 0);
+    var pmul = SHIPS[G.ship].prevMul * (un.prev ? 1.5 : 1);
+    G.previewLen = Math.round((360 + G.startAsc * 60) * pmul);
+    G.magnet = SHIPS[G.ship].magnet * (un.magnet ? 1.12 : 1);
+  }
+
   function startGame() {
-    G.meta = metaLoad(); G.startAsc = G.meta.asc;
-    G.extraShots = Math.floor(G.startAsc);
-    // generous preview so it is genuine PLANNING, not blind guessing
-    G.previewLen = 600 + G.startAsc * 60;
-    G.powerStep = 1;
+    applyMetaToRun();
     G.screen = "playing";
-    G.score = 0; G.stars = 0; G.runStars = 0;
-    G.parts = []; G.shake = 0; G.flash = 0;
-    G.banner = ""; G.bannerT = 0; G.pendingUpg = null;
-    loadStage(1);
+    G.score = 0; G.stars = 0; G.runStars = 0; G.medals = 0;
+    G.parts = []; G.shake = 0; G.flash = 0; G.scoreMul = 1;
+    G.softCore = 0; G.bonusStar = 0; G.nextMods = null;
+    G.banner = ""; G.bannerT = 0;
+    makeStars();
+    loadStage(1, {});
     hud.classList.remove("hidden");
-    startScreen.classList.add("hidden");
-    upgScreen.classList.add("hidden");
-    overScreen.classList.add("hidden");
+    [startScreen, hangarScreen, upgScreen, mapScreen, overScreen]
+      .forEach(function (e) { e.classList.add("hidden"); });
+  }
+  function makeStars() {
+    G.stars2 = [];
+    var r = mulberry32(777);
+    for (var i = 0; i < 90; i++)
+      G.stars2.push({ x: r() * VW, y: r() * VH, z: 0.3 + r() * 0.7 });
   }
 
   function paintHud() {
     scoreEl.textContent = G.score;
     var t = G.level && G.level.boss ? "👑 " + bossName(G.stage) :
       G.level && G.level.mini ? "⚔ MINI" : "STAGE";
-    metaEl.textContent = (G.realm ? G.realm.n + "  ·  " : "") + t + " " +
-      G.stage + "  ·  ★" + G.stars +
+    var cp = G.level && G.level.checkpoints.length ?
+      "  ·  ◇" + G.level.checkpoints.filter(function (c) { return c._k; }).length +
+      "/" + G.level.checkpoints.length : "";
+    hmetaEl.textContent = (G.realm ? G.realm.n + "  ·  " : "") + t + " " +
+      G.stage + "  ·  ★" + G.stars + cp +
       (G.hitsLeft > 1 ? "  ·  명중 " + (G.level.hits - G.hitsLeft) +
         "/" + G.level.hits : "");
-    shotsEl.textContent = "발사 " + G.shots + "/" + G.shotsMax;
+    shotsEl.textContent = "발사 " + G.shots + "/" + G.shotsMax +
+      "  ·  함선 " + G.ship;
   }
 
+  // ---------- run upgrades ----------
   var POOL = [
-    { k: "shot", t: "여분 연료", d: "스테이지 발사 +2", cost: 4,
-      ap: function () { G.extraShots += 2; } },
-    { k: "prev", t: "긴 예측선", d: "예측 경로 +40", cost: 3,
-      ap: function () { G.previewLen += 40; } },
-    { k: "fine", t: "정밀 조준", d: "세기 미세조정", cost: 3,
-      ap: function () { G.powerStep = 0.5; } },
-    { k: "sco", t: "광휘", d: "점수 +30%", cost: 4,
-      ap: function () { G.scoreMul = (G.scoreMul || 1) * 1.3; } },
-    { k: "star", t: "별 자력", d: "클리어 별 +1", cost: 6,
-      ap: function () { G.bonusStar = (G.bonusStar || 0) + 1; } },
-    { k: "soft", t: "완충 코어", d: "첫 충돌 1회 무효", cost: 5,
-      ap: function () { G.softCore = (G.softCore || 0) + 1; } },
-    { k: "pull", t: "약한 중력", d: "다음 영역 난이도 완화", cost: 4,
-      ap: function () { G.ease = (G.ease || 0) + 1; } },
-    { k: "warp", t: "재정렬", d: "발사 +1 · 예측 +20", cost: 3,
-      ap: function () { G.extraShots += 1; G.previewLen += 20; } }
+    { k: "shot", t: "여분 연료", d: "발사 +2", cost: 4, ap: function () { G.extraShots += 2; G.shots += 2; G.shotsMax += 2; } },
+    { k: "prev", t: "긴 예측선", d: "예측 +50", cost: 3, ap: function () { G.previewLen += 50; } },
+    { k: "mag", t: "포탈 자력", d: "포탈 판정 +10%", cost: 4, ap: function () { G.magnet *= 1.10; } },
+    { k: "sco", t: "광휘", d: "점수 +30%", cost: 4, ap: function () { G.scoreMul *= 1.3; } },
+    { k: "star", t: "별 자력", d: "클리어 별 +1", cost: 6, ap: function () { G.bonusStar += 1; } },
+    { k: "soft", t: "완충 코어", d: "충돌 1회 무효", cost: 5, ap: function () { G.softCore += 1; } },
+    { k: "near", t: "근접 항법", d: "어시스트 점수 2배", cost: 3, ap: function () { G.assistMul = (G.assistMul || 1) * 2; } },
+    { k: "warp", t: "재정렬", d: "발사+1 · 예측+25", cost: 3, ap: function () { G.extraShots++; G.shots++; G.shotsMax++; G.previewLen += 25; } }
   ];
   function rollOffers() {
     var bag = POOL.slice(), out = [];
@@ -416,37 +535,50 @@
       out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
     return out;
   }
+  function card(parent, title, sub, cls, fn) {
+    var c = document.createElement("div");
+    c.className = "card" + (cls ? " " + cls : "");
+    c.innerHTML = "<b>" + title + "</b><br><span>" + sub + "</span>";
+    c.onclick = fn; parent.appendChild(c); return c;
+  }
   function openUpgrades() {
     G.screen = "upgrade";
-    upgTitle.textContent = "STAGE " + G.stage + " 클리어 — 강화  (★ " +
-      G.stars + ")";
+    upgTitle.textContent = "STAGE " + G.stage + " 클리어 — 강화  (★ " + G.stars + ")";
     upgCards.innerHTML = "";
     rollOffers().forEach(function (u) {
-      var c = document.createElement("div");
-      c.className = "upg";
-      c.innerHTML = "<b>" + u.t + "</b><br><span>" + u.d +
-        "</span><br><span>비용 ★" + u.cost + "</span>";
-      c.onclick = function () {
+      card(upgCards, u.t, u.d + " · ★" + u.cost, "", function () {
         if (G.stars < u.cost) return;
         G.stars -= u.cost; u.ap(); beep(660, 0.1, "square", 0.05);
-        resumeFromUpgrade();
-      };
-      upgCards.appendChild(c);
+        openMap();
+      });
     });
-    var sk = document.createElement("div");
-    sk.className = "upg";
-    sk.innerHTML = "<b>건너뛰기</b><br><span>별 보존</span>";
-    sk.onclick = resumeFromUpgrade;
-    upgCards.appendChild(sk);
-    hud.classList.add("hidden");
-    upgScreen.classList.remove("hidden");
+    card(upgCards, "건너뛰기", "별 보존", "", openMap);
+    hud.classList.add("hidden"); upgScreen.classList.remove("hidden");
   }
-  function resumeFromUpgrade() {
+  // ---------- branching map ----------
+  function openMap() {
     upgScreen.classList.add("hidden");
+    var ns = G.stage + 1;
+    G.screen = "map";
+    mapCards.innerHTML = "";
+    var safe = { harder: false, starMul: 1, salt: 0 };
+    var risky = { harder: true, starMul: 2, salt: 7 };
+    card(mapCards, "표준 항로", "균형 잡힌 " +
+      (isBoss(ns) ? "보스" : isMini(ns) ? "정밀" : "구간"), "", function () {
+      G.nextMods = safe; goNext(ns);
+    });
+    card(mapCards, "위험 항로", "행성·장애물 ↑ · 별 ×2", "", function () {
+      G.nextMods = risky; goNext(ns);
+    });
+    mapScreen.classList.remove("hidden");
+  }
+  function goNext(ns) {
+    mapScreen.classList.add("hidden");
     hud.classList.remove("hidden");
     G.screen = "playing";
-    loadStage(G.stage + 1);
+    loadStage(ns, G.nextMods || {});
   }
+  function resumeUpgrade() { openMap(); }   // test/back-compat helper
 
   function addParts(x, y, c, n) {
     for (var i = 0; i < n; i++) {
@@ -456,63 +588,61 @@
     }
   }
 
-  function clearStage() {
-    var earned = G.shotStars + (G.bonusStar || 0);
+  function clearStage(assists) {
+    var medal = (G.shotsMax - G.shots) <= G.level.par ? 1 : 0;
+    G.medals += medal;
+    var earned = G.shotStars + G.bonusStar + medal;
+    earned = Math.round(earned * (G.level.starMul || 1));
     G.stars += earned; G.runStars += earned;
-    G.score += Math.round((100 + earned * 50) * (G.scoreMul || 1));
-    addParts(sx(G.level.portal.x), sy(G.level.portal.y), "#39d353", 60);
+    var asb = Math.round(assists * 2 * (G.assistMul || 1));
+    G.score += Math.round((140 + earned * 55 + asb) * (G.scoreMul || 1));
+    addParts(sx(G.level.portal.x), sy(G.level.portal.y), "#39d353", 64);
     G.flash = 0.8; G.shake = Math.max(G.shake, 14);
     beep(720, 0.35, "triangle", 0.07);
-    showBanner("CLEAR  ★" + earned, "");
-    G.pendingUpg = true;
+    bn("CLEAR  ★" + earned + (medal ? "  🏅" : ""), "");
+    openUpgrades();
   }
-
   function gameOver() {
     G.screen = "over"; G.overAt = Date.now();
-    G.shake = 24; G.flash = 1;
-    beep(90, 0.5, "sawtooth", 0.07);
+    G.shake = 24; G.flash = 1; beep(90, 0.5, "sawtooth", 0.07);
     var m = G.meta;
-    m.stars += G.runStars;
+    m.stars += G.runStars; m.lifetime += G.runStars;
     var nb = G.score > m.best; if (nb) m.best = G.score;
-    var prev = m.asc; m.asc = ascFromStars(m.stars);
+    var prev = m.asc; m.asc = ascFromLifetime(m.lifetime);
     metaSave(m);
     setTimeout(function () {
       if (G.screen !== "over") return;
       finalScore.textContent = G.score;
       bestMsg.textContent = (nb ? "🎉 신기록!  " : "BEST " + m.best + "  ") +
-        "· STAGE " + G.stage + " · " + G.realm.n;
-      ascGain.textContent = m.asc > prev ?
-        "✦ 승천 " + prev + " → " + m.asc + " (다음 항해가 강해집니다)" :
-        "✦ 누적 별 " + m.stars + " · 승천 " + m.asc;
-      hud.classList.add("hidden");
-      overScreen.classList.remove("hidden");
+        "· STAGE " + G.stage + " · " + G.realm.n + " · 🏅" + G.medals;
+      ascGain.textContent = (m.asc > prev ?
+        "✦ 승천 " + prev + " → " + m.asc : "✦ 누적 별 " + m.stars +
+        " · 승천 " + m.asc) + "  (격납고에서 영구 해금)";
+      hud.classList.add("hidden"); overScreen.classList.remove("hidden");
     }, 680);
   }
 
-  function fireComet() {
-    if (G.comet || G.shots <= 0) return;
+  function fire() {
+    if (G.comet || G.shots <= 0 || G.screen !== "playing") return;
     G.shots--;
-    G.comet = { x: G.level.start.x, y: G.level.start.y,
+    var L = G.level;
+    for (var i = 0; i < L.checkpoints.length; i++) L.checkpoints[i]._k = false;
+    G.comet = { x: L.start.x, y: L.start.y,
       vx: Math.cos(G.angle) * G.power, vy: Math.sin(G.angle) * G.power,
-      step: 0, trail: [] };
-    beep(300, 0.12, "sine", 0.05);
-    paintHud();
+      step: 0, trail: [], got: 0, assists: 0, wd: 0 };
+    beep(300, 0.12, "sine", 0.05); paintHud();
   }
-
-  function endShot(win) {
+  function endShot(win, assists) {
     G.comet = null;
     if (win) {
       G.hitsLeft--;
       addParts(sx(G.level.portal.x), sy(G.level.portal.y), "#58a6ff", 22);
       beep(560, 0.12, "sine", 0.05);
-      if (G.hitsLeft <= 0) { clearStage(); return; }
-      showBanner("명중! 남은 " + G.hitsLeft, "");
+      if (G.hitsLeft <= 0) { clearStage(assists || 0); return; }
+      bn("명중! 남은 " + G.hitsLeft, "");
     } else {
-      if ((G.softCore || 0) > 0 && G.shots >= 0) {
-        G.softCore--; showBanner("완충 코어", "충돌 무효 — 다시 조준");
-      } else {
-        G.shotStars = Math.max(1, G.shotStars - 1);
-      }
+      if (G.softCore > 0) { G.softCore--; bn("완충 코어", "충돌 무효"); }
+      else G.shotStars = Math.max(1, G.shotStars - 1);
       G.shake = Math.max(G.shake, 8); beep(160, 0.18, "sawtooth", 0.05);
       if (G.shots <= 0) { gameOver(); return; }
     }
@@ -520,93 +650,111 @@
   }
 
   function handleTap() {
-    if (G.screen === "start") startGame();
-    else if (G.screen === "over") { if (Date.now() - G.overAt > 700) startGame(); }
+    if (G.screen === "start") return;            // ship cards handle start
+    if (G.screen === "over" && Date.now() - G.overAt > 700) {
+      overScreen.classList.add("hidden"); buildStart();
+      startScreen.classList.remove("hidden"); G.screen = "start";
+    }
   }
-
   window.addEventListener("pointerdown", function (e) {
-    if (e.target && e.target.classList &&
-        (e.target.classList.contains("home") ||
-         e.target.classList.contains("upg"))) return;
+    var cl = e.target && e.target.classList;
+    if (cl && (cl.contains("home") || cl.contains("card") ||
+        cl.contains("tap"))) return;
     e.preventDefault();
-    if (G.screen !== "playing") { handleTap(); return; }
-    if (G.comet) return;
-    G.aiming = true; aimTo(e.clientX, e.clientY);
+    if (G.screen === "playing" && !G.comet) { G.aiming = true; aim(e.clientX, e.clientY); }
+    else handleTap();
   }, { passive: false });
   window.addEventListener("pointermove", function (e) {
-    if (G.screen === "playing" && G.aiming && !G.comet)
-      aimTo(e.clientX, e.clientY);
+    if (G.screen === "playing" && G.aiming && !G.comet) aim(e.clientX, e.clientY);
   });
   window.addEventListener("pointerup", function () {
-    if (G.screen === "playing" && G.aiming && !G.comet) {
-      G.aiming = false; fireComet();
-    }
+    if (G.screen === "playing" && G.aiming && !G.comet) { G.aiming = false; fire(); }
   });
-  function aimTo(px, py) {
+  function aim(px, py) {
     var dx = wx(px) - G.level.start.x, dy = wy(py) - G.level.start.y;
     G.angle = Math.atan2(dy, dx);
-    var d = Math.hypot(dx, dy);
-    G.power = Math.max(PMIN, Math.min(PMAX, PMIN + d / 90 * (PMAX - PMIN)));
+    G.power = Math.max(PMIN, Math.min(PMAX,
+      PMIN + Math.hypot(dx, dy) / 90 * (PMAX - PMIN)));
   }
   window.addEventListener("keydown", function (e) {
     if (G.screen !== "playing") {
-      if (e.code === "Space" || e.code === "Enter") { e.preventDefault(); handleTap(); }
+      if (e.code === "Space" || e.code === "Enter") handleTap();
       return;
     }
     if (G.comet) return;
-    var st = G.powerStep || 1;
-    if (e.code === "ArrowLeft") G.angle -= 0.035;
-    else if (e.code === "ArrowRight") G.angle += 0.035;
-    else if (e.code === "ArrowUp") G.power = Math.min(PMAX, G.power + 0.15 * st);
-    else if (e.code === "ArrowDown") G.power = Math.max(PMIN, G.power - 0.15 * st);
-    else if (e.code === "Space") { e.preventDefault(); fireComet(); }
+    if (e.code === "ArrowLeft") G.angle -= 0.03;
+    else if (e.code === "ArrowRight") G.angle += 0.03;
+    else if (e.code === "ArrowUp") G.power = Math.min(PMAX, G.power + 0.15);
+    else if (e.code === "ArrowDown") G.power = Math.max(PMIN, G.power - 0.15);
+    else if (e.code === "Space") { e.preventDefault(); fire(); }
   });
 
   function update() {
-    G.tick++;                                  // free-running clock (telegraph)
+    G.tick++;
     if (G.screen === "playing" && G.comet) {
-      var lvl = G.level, cm = G.comet;
-      for (var sub = 0; sub < 2; sub++) {       // 2 physics steps / frame
+      var L = G.level, cm = G.comet, i, wp;
+      for (var sub = 0; sub < 2; sub++) {
         cm.step++;
-        var ax = 0, ay = 0, i;
-        for (i = 0; i < lvl.wells.length; i++) {
-          var wg = lvl.wells[i];
-          var dx = wg.x - cm.x, dy = wg.y - cm.y;
+        var ax = 0, ay = 0;
+        for (i = 0; i < L.wells.length; i++) {
+          wp = wellPos(L.wells[i], cm.step);
+          var dx = wp.x - cm.x, dy = wp.y - cm.y;
           var r2 = dx * dx + dy * dy + EPS2;
-          var inv = GK * wg.mass / (r2 * Math.sqrt(r2));
+          var inv = GK * L.wells[i].mass / (r2 * Math.sqrt(r2));
           ax += dx * inv; ay += dy * inv;
+          if (r2 < 9000) cm.assists++;
         }
-        cm.vx += ax * DT; cm.vy += ay * DT;
-        cm.x += cm.vx * DT; cm.y += cm.vy * DT;
+        cm.vx += ax; cm.vy += ay; cm.x += cm.vx; cm.y += cm.vy;
         if (cm.step % 3 === 0) {
           cm.trail.push({ x: cm.x, y: cm.y });
-          if (cm.trail.length > 90) cm.trail.shift();
+          if (cm.trail.length > 120) cm.trail.shift();
         }
-        var pdx = cm.x - lvl.portal.x, pdy = cm.y - lvl.portal.y;
-        if (pdx * pdx + pdy * pdy <=
-            (lvl.portal.r + COMET_R) * (lvl.portal.r + COMET_R)) {
-          endShot(true); return;
+        if (cm.wd > 0) cm.wd--;
+        if (L.worm && cm.wd === 0) {
+          var wq = L.worm;
+          if (Math.hypot(cm.x - wq.ax, cm.y - wq.ay) <= wq.r) {
+            cm.x = wq.bx; cm.y = wq.by; cm.wd = 20;
+            addParts(sx(wq.bx), sy(wq.by), "#39d353", 16);
+            beep(500, 0.1, "sine", 0.05);
+          } else if (Math.hypot(cm.x - wq.bx, cm.y - wq.by) <= wq.r) {
+            cm.x = wq.ax; cm.y = wq.ay; cm.wd = 20;
+            addParts(sx(wq.ax), sy(wq.ay), "#39d353", 16);
+            beep(500, 0.1, "sine", 0.05);
+          }
         }
+        for (i = 0; i < L.checkpoints.length; i++) {
+          var cp = L.checkpoints[i];
+          if (!cp._k && Math.hypot(cm.x - cp.x, cm.y - cp.y)
+              <= cp.r + COMET_R) {
+            cp._k = true; cm.got++; addParts(sx(cp.x), sy(cp.y), "#e3b341", 14);
+            beep(820, 0.07, "sine", 0.04); paintHud();
+          }
+        }
+        var pr = effPortalR();
+        if (cm.got >= L.checkpoints.length &&
+            Math.hypot(cm.x - L.portal.x, cm.y - L.portal.y)
+            <= pr + COMET_R) { endShot(true, cm.assists); return; }
         if (cm.x < -40 || cm.x > VW + 40 || cm.y < -40 || cm.y > VH + 40) {
           endShot(false); return;
         }
-        for (i = 0; i < lvl.wells.length; i++)
-          if (Math.hypot(cm.x - lvl.wells[i].x, cm.y - lvl.wells[i].y)
-              < lvl.wells[i].coreR + COMET_R) { endShot(false); return; }
-        for (i = 0; i < lvl.hazards.length; i++)
-          if (Math.hypot(cm.x - lvl.hazards[i].x, cm.y - lvl.hazards[i].y)
-              < lvl.hazards[i].r + COMET_R) { endShot(false); return; }
-        if (lvl.guardian) {
-          var gd = lvl.guardian, ga = gd.base + cm.step * gd.omega;
-          var gx = gd.cx + Math.cos(ga) * gd.R, gy = gd.cy + Math.sin(ga) * gd.R;
-          if (Math.hypot(cm.x - gx, cm.y - gy) < gd.r + COMET_R) {
+        for (i = 0; i < L.wells.length; i++) {
+          wp = wellPos(L.wells[i], cm.step);
+          if (Math.hypot(cm.x - wp.x, cm.y - wp.y)
+              < L.wells[i].coreR + COMET_R) { endShot(false); return; }
+        }
+        for (i = 0; i < L.hazards.length; i++)
+          if (Math.hypot(cm.x - L.hazards[i].x, cm.y - L.hazards[i].y)
+              < L.hazards[i].r + COMET_R) { endShot(false); return; }
+        if (L.guardian) {
+          var gd = L.guardian, ga = gd.base + cm.step * gd.omega;
+          if (Math.hypot(cm.x - (gd.cx + Math.cos(ga) * gd.R),
+              cm.y - (gd.cy + Math.sin(ga) * gd.R)) < gd.r + COMET_R) {
             endShot(false); return;
           }
         }
         if (cm.step >= MAXSTEPS) { endShot(false); return; }
       }
     }
-    if (G.pendingUpg && G.screen === "playing") { G.pendingUpg = null; openUpgrades(); }
     var pk = [];
     for (var q = 0; q < G.parts.length; q++) {
       var p = G.parts[q];
@@ -619,18 +767,25 @@
     if (G.flash > 0.01) G.flash *= 0.86; else G.flash = 0;
   }
 
-  function drawCirc(x, y, r, fill) {
+  function dc(x, y, r, fill) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
     if (fill) ctx.fill(); else ctx.stroke();
   }
   function draw() {
     var rm = G.realm || REALMS[0];
-    var gd = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2,
+    var g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2,
       Math.max(W, H) * 0.7);
-    gd.addColorStop(0, rm.bg); gd.addColorStop(1, "#05060c");
-    ctx.fillStyle = gd; ctx.fillRect(0, 0, W, H);
+    g.addColorStop(0, rm.bg); g.addColorStop(1, "#04050b");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    for (var i = 0; i < G.stars2.length; i++) {
+      var st = G.stars2[i];
+      ctx.globalAlpha = st.z * 0.6;
+      dc(sx((st.x + G.tick * st.z * 0.2) % VW), sy(st.y), st.z * 1.4, true);
+    }
+    ctx.globalAlpha = 1;
     if (G.flash > 0.02) {
-      ctx.fillStyle = "rgba(255,255,255," + (G.flash * 0.4) + ")";
+      ctx.fillStyle = "rgba(255,255,255," + G.flash * 0.4 + ")";
       ctx.fillRect(0, 0, W, H);
     }
     ctx.save();
@@ -639,71 +794,81 @@
                     (Math.random() - .5) * G.shake * 0.5);
 
     if (G.level && (G.screen === "playing" || G.screen === "upgrade" ||
-        G.screen === "over")) {
-      var L = G.level, i;
-      // arena frame
+        G.screen === "map" || G.screen === "over")) {
+      var L = G.level;
       ctx.strokeStyle = "rgba(154,164,178,0.16)"; ctx.lineWidth = 2;
       ctx.strokeRect(sx(0), sy(0), VW * VIEW.s, VH * VIEW.s);
-      // wells
+      var st = G.comet ? G.comet.step : G.tick;
+      // wells (with orbit telegraph for moving ones)
       for (i = 0; i < L.wells.length; i++) {
-        var wg = L.wells[i];
-        ctx.strokeStyle = "rgba(88,166,255,0.30)"; ctx.lineWidth = 1.5;
-        drawCirc(sx(wg.x), sy(wg.y), (wg.coreR + 26) * VIEW.s, false);
-        ctx.fillStyle = rm.c;
-        drawCirc(sx(wg.x), sy(wg.y), wg.coreR * VIEW.s, true);
+        var wg = L.wells[i], wpp = wellPos(wg, st);
+        if (wg.orb) {
+          ctx.strokeStyle = "rgba(88,166,255,0.22)"; ctx.lineWidth = 1.5;
+          dc(sx(wg.orb.cx), sy(wg.orb.cy), wg.orb.R * VIEW.s, false);
+        }
+        ctx.strokeStyle = "rgba(88,166,255,0.28)"; ctx.lineWidth = 1.5;
+        dc(sx(wpp.x), sy(wpp.y), (wg.coreR + 26) * VIEW.s, false);
+        ctx.fillStyle = rm.c; dc(sx(wpp.x), sy(wpp.y), wg.coreR * VIEW.s, true);
       }
-      // hazards
       ctx.fillStyle = "#ff5d5d";
       for (i = 0; i < L.hazards.length; i++)
-        drawCirc(sx(L.hazards[i].x), sy(L.hazards[i].y),
+        dc(sx(L.hazards[i].x), sy(L.hazards[i].y),
           L.hazards[i].r * VIEW.s, true);
-      // guardian — telegraphed: orbit ring always shown, and it KEEPS
-      // moving before launch (free clock) so its timing is readable, not
-      // a blind first-try gamble.
-      if (L.guardian) {
-        var gG = L.guardian;
-        ctx.strokeStyle = "rgba(227,179,65,0.30)"; ctx.lineWidth = 1.5;
-        drawCirc(sx(gG.cx), sy(gG.cy), gG.R * VIEW.s, false);
-        var st = G.comet ? G.comet.step : G.tick;
-        var ga = gG.base + st * gG.omega;
-        ctx.fillStyle = "#e3b341";
-        drawCirc(sx(gG.cx + Math.cos(ga) * gG.R),
-          sy(gG.cy + Math.sin(ga) * gG.R), gG.r * VIEW.s, true);
+      if (L.worm) {
+        ctx.strokeStyle = "#39d353"; ctx.lineWidth = 3;
+        dc(sx(L.worm.ax), sy(L.worm.ay), L.worm.r * VIEW.s, false);
+        dc(sx(L.worm.bx), sy(L.worm.by), L.worm.r * VIEW.s, false);
+        ctx.strokeStyle = "rgba(57,211,83,0.25)"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(sx(L.worm.ax), sy(L.worm.ay));
+        ctx.lineTo(sx(L.worm.bx), sy(L.worm.by)); ctx.stroke();
       }
-      // portal
+      for (i = 0; i < L.checkpoints.length; i++) {
+        var cp = L.checkpoints[i];
+        ctx.strokeStyle = cp._k ? "#39d353" : "#e3b341"; ctx.lineWidth = 3;
+        dc(sx(cp.x), sy(cp.y), cp.r * VIEW.s, false);
+        if (cp._k) { ctx.fillStyle = "rgba(57,211,83,0.3)";
+          dc(sx(cp.x), sy(cp.y), cp.r * VIEW.s, true); }
+      }
+      if (L.guardian) {
+        var gd = L.guardian, ga = gd.base + st * gd.omega;
+        ctx.strokeStyle = "rgba(227,179,65,0.30)"; ctx.lineWidth = 1.5;
+        dc(sx(gd.cx), sy(gd.cy), gd.R * VIEW.s, false);
+        ctx.fillStyle = "#e3b341";
+        dc(sx(gd.cx + Math.cos(ga) * gd.R), sy(gd.cy + Math.sin(ga) * gd.R),
+          gd.r * VIEW.s, true);
+      }
+      var er = effPortalR();
       ctx.strokeStyle = "#39d353"; ctx.lineWidth = 3;
-      drawCirc(sx(L.portal.x), sy(L.portal.y), L.portal.r * VIEW.s, false);
-      ctx.fillStyle = "rgba(57,211,83,0.18)";
-      drawCirc(sx(L.portal.x), sy(L.portal.y), L.portal.r * VIEW.s, true);
-      // start pad
-      ctx.fillStyle = "#fff";
-      drawCirc(sx(L.start.x), sy(L.start.y), 7 * VIEW.s, true);
+      dc(sx(L.portal.x), sy(L.portal.y), er * VIEW.s, false);
+      ctx.fillStyle = "rgba(57,211,83,0.16)";
+      dc(sx(L.portal.x), sy(L.portal.y), er * VIEW.s, true);
+      ctx.fillStyle = "#fff"; dc(sx(L.start.x), sy(L.start.y), 7 * VIEW.s, true);
 
-      // aim preview (telegraph -> plan with skill, not guess).
-      // full deterministic path, cached so we don't re-sim every frame.
       if (!G.comet && G.screen === "playing") {
-        var key = G.angle.toFixed(4) + "|" + G.power.toFixed(3) + "|" + G.stage;
+        var key = G.angle.toFixed(4) + "|" + G.power.toFixed(3) + "|" +
+          G.stage + "|" + Math.floor(G.tick / 4);
         if (key !== G._pvKey) {
-          G._pv = simulate(L, G.angle, G.power, true);
-          G._pvKey = key;
+          G._pv = simulate(L, G.angle, G.power, true); G._pvKey = key;
         }
-        var pv = G._pv;
-        var lim = Math.min(pv.pts.length, Math.floor(G.previewLen / 3));
+        var pv = G._pv, lim = Math.min(pv.pts.length,
+          Math.floor(G.previewLen / 3));
         for (i = 1; i < lim; i++) {
-          ctx.fillStyle = "rgba(255,255,255," +
-            (0.6 - 0.45 * (i / lim)) + ")";       // fades along the path
-          drawCirc(sx(pv.pts[i].x), sy(pv.pts[i].y), 2, true);
+          ctx.fillStyle = "rgba(255,255,255," + (0.6 - 0.45 * i / lim) + ")";
+          dc(sx(pv.pts[i].x), sy(pv.pts[i].y), 2, true);
         }
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        var ex = L.start.x + Math.cos(G.angle) * 34;
-        var ey = L.start.y + Math.sin(G.angle) * 34;
+        if (lim > 1) {
+          var ep = pv.pts[lim - 1];
+          ctx.strokeStyle = pv.win ? "#39d353" : "#ff5d5d"; ctx.lineWidth = 2;
+          dc(sx(ep.x), sy(ep.y), 7, false);
+        }
+        var ex = L.start.x + Math.cos(G.angle) * 34,
+            ey = L.start.y + Math.sin(G.angle) * 34;
         ctx.strokeStyle = rm.c; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(sx(L.start.x), sy(L.start.y));
         ctx.lineTo(sx(ex), sy(ey)); ctx.stroke();
       }
-      // comet + trail
       if (G.comet) {
-        ctx.strokeStyle = "rgba(88,166,255,0.5)"; ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(88,166,255,0.55)"; ctx.lineWidth = 2;
         ctx.beginPath();
         for (i = 0; i < G.comet.trail.length; i++) {
           var tp = G.comet.trail[i];
@@ -711,48 +876,89 @@
           else ctx.lineTo(sx(tp.x), sy(tp.y));
         }
         ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.shadowColor = "#58a6ff"; ctx.shadowBlur = 14;
-        drawCirc(sx(G.comet.x), sy(G.comet.y), COMET_R * VIEW.s, true);
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "#58a6ff";
+        ctx.shadowBlur = 14;
+        dc(sx(G.comet.x), sy(G.comet.y), COMET_R * VIEW.s, true);
         ctx.shadowBlur = 0;
       }
       if (G.bannerT > 0) {
         ctx.globalAlpha = Math.min(1, G.bannerT / 30);
         ctx.fillStyle = "#fff"; ctx.textAlign = "center";
-        ctx.font = "800 32px Segoe UI, sans-serif";
-        ctx.fillText(G.banner, W / 2, H * 0.26);
+        ctx.font = "800 30px Segoe UI, sans-serif";
+        ctx.fillText(G.banner, W / 2, H * 0.24);
         ctx.font = "500 15px Segoe UI, sans-serif";
-        ctx.fillStyle = "#9aa4b2";
-        ctx.fillText(G.bsub, W / 2, H * 0.26 + 26);
+        ctx.fillStyle = "#9aa4b2"; ctx.fillText(G.bsub, W / 2, H * 0.24 + 25);
         ctx.globalAlpha = 1;
       }
     }
-    for (var q = 0; q < G.parts.length; q++) {
-      var p = G.parts[q];
-      ctx.globalAlpha = p.life > 0 ? p.life : 0;
-      drawCirc(p.x, p.y, 3 * p.life + 1, true);
-      ctx.fillStyle = p.c;
+    for (var q2 = 0; q2 < G.parts.length; q2++) {
+      var pa = G.parts[q2];
+      ctx.globalAlpha = pa.life > 0 ? pa.life : 0;
+      ctx.fillStyle = pa.c; dc(pa.x, pa.y, 3 * pa.life + 1, true);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
   }
-
   function loop() { update(); draw(); window.requestAnimationFrame(loop); }
 
-  (function () {
+  // ---------- menus ----------
+  function buildStart() {
     var m = metaLoad();
-    ascLine.textContent = m.asc > 0 ?
-      "✦ 승천 " + m.asc + " — 추가 연료·긴 예측선으로 출발" :
-      "✦ 모은 별은 사라지지 않고 다음 항해로 이어집니다";
-  })();
+    ascLine.textContent = (m.asc > 0 ? "✦ 승천 " + m.asc + " · " : "✦ ") +
+      "누적 별 " + m.stars + " (격납고 G)  ·  최고 " + m.best;
+    shipCards.innerHTML = "";
+    Object.keys(SHIPS).forEach(function (k) {
+      var sp = SHIPS[k];
+      var locked = sp.need && !m.unlocks[sp.need];
+      card(shipCards, sp.name,
+        locked ? "🔒 격납고에서 해금" :
+        ("발사 " + (sp.shots >= 0 ? "+" : "") + sp.shots +
+         " · 예측 ×" + sp.prevMul + " · 자력 ×" + sp.magnet),
+        locked ? "lock" : "", function () {
+          if (locked) return;
+          G.ship = k; startGame();
+        });
+    });
+    card(shipCards, "격납고 (G)", "영구 해금 트리", "", openHangar);
+  }
+  function openHangar() {
+    var m = metaLoad();
+    G.screen = "hangar";
+    hangarStars.textContent = "보유 누적 별 ★ " + m.stars;
+    hangarCards.innerHTML = "";
+    UNLOCKS.forEach(function (u) {
+      var owned = !!m.unlocks[u.k];
+      card(hangarCards, (owned ? "✓ " : "") + u.t,
+        u.d + (owned ? " · 보유" : " · ★" + u.cost),
+        owned ? "lock" : "", function () {
+          if (owned) return;
+          if (buyUnlock(u.k)) { beep(700, 0.12, "square", 0.05); openHangar(); }
+        });
+    });
+    startScreen.classList.add("hidden");
+    hangarScreen.classList.remove("hidden");
+  }
+  hangarBack.addEventListener("pointerdown", function (e) {
+    e.preventDefault(); hangarScreen.classList.add("hidden");
+    buildStart(); startScreen.classList.remove("hidden"); G.screen = "start";
+  });
+  window.addEventListener("keydown", function (e) {
+    if (G.screen === "start" && (e.code === "KeyG")) openHangar();
+  });
+
+  buildStart();
 
   window.__ORBITAL__ = {
     G: G, update: update, startGame: startGame, handleTap: handleTap,
-    resumeUpgrade: resumeFromUpgrade, loadStage: loadStage,
-    genStage: genStage, simulate: simulate, fire: fireComet,
-    realmOf: realmOf, bossName: bossName, isBoss: isBoss, isMini: isMini,
-    ascFromStars: ascFromStars, metaLoad: metaLoad, metaSave: metaSave,
-    rollOffers: rollOffers, POOL: POOL,
+    loadStage: loadStage, genStage: genStage, simulate: simulate,
+    findSolution: findSolution, directWins: directWins, fire: fire,
+    openUpgrades: openUpgrades, openMap: openMap, goNext: goNext,
+    resumeUpgrade: resumeUpgrade, realmOf: realmOf, bossName: bossName,
+    isBoss: isBoss, isMini: isMini, ascFromLifetime: ascFromLifetime,
+    metaLoad: metaLoad, metaSave: metaSave, metaDefault: metaDefault,
+    buyUnlock: buyUnlock, rollOffers: rollOffers, POOL: POOL,
+    UNLOCKS: UNLOCKS, SHIPS: SHIPS, wellPos: wellPos,
+    setShip: function (s) { G.ship = s; },
     consts: { VW: VW, VH: VH, PMIN: PMIN, PMAX: PMAX, MAXSTEPS: MAXSTEPS,
       COMET_R: COMET_R }
   };
