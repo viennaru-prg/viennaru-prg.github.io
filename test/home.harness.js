@@ -91,6 +91,11 @@ check("issue url body has machine tag",
 check("issue url includes the written text",
   decodeURIComponent(iu).indexOf("수정함: 난이도 올리니 더 좋아요") > -1);
 
+// delivery flag (site shows 저장됨 vs 전달완료 honestly)
+check("not delivered until sent", !H.getReview("p1").delivered);
+H.markDelivered("p1");
+check("markDelivered sets flag", H.getReview("p1").delivered === true);
+
 // persistence across reload (same store key)
 check("persisted to localStorage",
   store["test_reviews"] && store["test_reviews"].indexOf("수정함") > -1);

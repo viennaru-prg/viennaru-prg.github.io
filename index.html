@@ -211,6 +211,11 @@
     saveAll(all);
     return all[id];
   }
+  function markDelivered(id) {
+    var all = loadAll();
+    if (all[id]) { all[id].delivered = true; saveAll(all); }
+    return all[id] || null;
+  }
   function buildClaudeMessage(p, r) {
     return "[후기] 프로젝트 " + p.n + " " + p.title +
       " · 별점 " + r.rating + "/5 · " + r.savedAt + "\n" + r.text;
@@ -225,6 +230,7 @@
   window.__HOME__ = {
     getReview: getReview, putReview: putReview,
     buildClaudeMessage: buildClaudeMessage, buildIssueUrl: buildIssueUrl,
+    markDelivered: markDelivered,
     _setStore: function (k) { STORE_KEY = k; }
   };
 
@@ -268,8 +274,10 @@
     var top = el("div", "top");
     top.appendChild(el("span", "num", "No." + pad(p.n)));
     top.appendChild(el("h3", null, esc(p.title) + " " + p.emoji));
-    top.appendChild(el("span", "chip" + (saved ? " done" : ""),
-      saved ? "✅ 후기 완료" : "✍️ 후기 미작성"));
+    var chipTxt = !saved ? "✍️ 후기 미작성"
+      : (saved.delivered ? "✅ 전달 완료" : "💾 저장됨 · 미전달");
+    top.appendChild(el("span", "chip" + (saved && saved.delivered ? " done" : ""),
+      chipTxt));
     card.appendChild(top);
 
     card.appendChild(el("div", "desc", esc(p.desc)));
@@ -299,7 +307,8 @@
     var saved = getReview(p.id);
 
     if (saved && !rv._editing) {
-      rv.appendChild(el("div", "done-line", "✅ 작성 완료 · " + saved.savedAt));
+      rv.appendChild(el("div", "done-line",
+        (saved.delivered ? "✅ 전달 완료 · " : "💾 저장됨(아직 미전달) · ") + saved.savedAt));
       rv.insertAdjacentHTML("beforeend", starsHtml(saved.rating, true));
       rv.appendChild(el("div", "saved-text", esc(saved.text)));
 
@@ -327,12 +336,15 @@
       edit.onclick = function () { rv._editing = true; paintReview(rv, p); };
       send.onclick = function () {
         window.open(buildIssueUrl(p, saved), "_blank", "noopener");
+        markDelivered(p.id);
+        paintReview(rv, p); refreshStat(); rerender();
       };
       copy.onclick = function () {
         var msg = buildClaudeMessage(p, saved);
         copyText(msg, function (ok) {
           copy.textContent = ok ? "복사됨 ✓ 채팅에 붙여넣기" : "복사 실패";
           if (!ok) { var t = el("textarea"); t.value = msg; rv.appendChild(t); t.select(); }
+          if (ok) { markDelivered(p.id); refreshStat(); rerender(); }
           setTimeout(function () { copy.textContent = "📋 텍스트 복사"; }, 4000);
         });
       };
