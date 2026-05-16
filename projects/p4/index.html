@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>PARRY — 프로젝트 4</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #0b0e14;
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  #c { display: block; touch-action: none; }
+  .layer {
+    position: fixed; inset: 0; pointer-events: none; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: #e6edf3; text-align: center; padding: 24px; box-sizing: border-box;
+  }
+  .hud { justify-content: flex-start; padding-top: 20px; }
+  .hud .score { font-size: 42px; font-weight: 800; letter-spacing: -1px; }
+  .hud .meta { font-size: 13px; color: #8b949e; margin-top: 2px; }
+  .hud .combo { font-size: 15px; color: #3fb950; font-weight: 700; margin-top: 3px; height: 18px; }
+  h1 {
+    font-size: clamp(40px, 12vw, 82px); margin: 0; letter-spacing: 7px;
+    background: linear-gradient(90deg, #58a6ff, #f0883e);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .layer p { color: #8b949e; margin: 0; font-size: 15px; max-width: 470px; }
+  .big { font-size: 28px; color: #e6edf3; font-weight: 700; }
+  .tap { margin-top: 8px; font-size: 14px; color: #58a6ff; animation: blink 1.1s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; pointer-events: auto; }
+  .upg {
+    width: 168px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 12px; padding: 16px; cursor: pointer; color: #e6edf3;
+    transition: border-color .12s, transform .12s;
+  }
+  .upg:hover { border-color: #58a6ff; transform: translateY(-3px); }
+  .upg b { font-size: 15px; } .upg span { color: #8b949e; font-size: 12.5px; }
+  .home {
+    position: fixed; left: 16px; bottom: 14px; font-size: 13px;
+    color: #8b949e; text-decoration: none; z-index: 9; pointer-events: auto;
+  }
+  .home:hover { color: #58a6ff; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="layer hud hidden" id="hud">
+    <div class="score" id="score">0</div>
+    <div class="meta" id="meta"></div>
+    <div class="combo" id="combo"></div>
+  </div>
+
+  <div class="layer" id="startScreen">
+    <h1>PARRY</h1>
+    <p>가드 방향: 화살표/WASD, 또는 마우스·손가락으로 방향 지정</p>
+    <p>예고된 방향에서 날아오는 타격이 <b>닿는 순간</b> 그 방향을 막으세요.
+       모든 타격은 미리 보이고, 완벽 플레이면 <b>반드시 막을 수 있습니다</b>
+       — 운으로 죽지 않습니다. 스테이지·중간보스·보스가 나옵니다.</p>
+    <div class="tap">화면을 탭하면 시작</div>
+  </div>
+
+  <div class="layer hidden" id="upgScreen">
+    <div class="big" id="upgTitle">강화 선택</div>
+    <p>샤드로 강화 (매번 무작위 3종 — 런마다 다름)</p>
+    <div class="cards" id="upgCards"></div>
+  </div>
+
+  <div class="layer hidden" id="overScreen">
+    <h1>GAME OVER</h1>
+    <div class="big" id="finalScore">0</div>
+    <p id="bestMsg"></p>
+    <div class="tap" id="retryHint">잠시 후 다시 도전</div>
+  </div>
+
+  <a class="home" href="../../index.html">← 홈으로</a>
+
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("c"), ctx = canvas.getContext("2d");
+  var scoreEl = $("score"), metaEl = $("meta"), comboEl = $("combo");
+  var hud = $("hud"), startScreen = $("startScreen"),
+      upgScreen = $("upgScreen"), overScreen = $("overScreen"),
+      finalScore = $("finalScore"), bestMsg = $("bestMsg"),
+      upgCards = $("upgCards"), upgTitle = $("upgTitle");
+
+  var W, H, CX, CY, RING;
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    CX = W / 2; CY = H / 2;
+    RING = Math.min(W, H) * 0.30;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  var TAU = Math.PI * 2;
+  var best = 0;
+  try { best = parseInt(window.localStorage.getItem("parry_best"), 10) || 0; } catch (e) {}
+
+  // ---- tuning (chosen so a perfect player ALWAYS parries) ----
+  var GUARD_W = 0.17;          // guard turn rad/frame (upgradable)
+  var WAVES_PER_STAGE = 6;
+  var BOSS_HP = 8;
+  var LUCK_RATE = 0.05;        // ~5% allowed luck (bonus shard only)
+  // worst case: half-turn between two required facings.
+  function turnTime(gw) { return Math.PI / gw; }
+
+  function stageType(s) {
+    if (s % 6 === 0) return "BOSS";
+    if (s % 3 === 0) return "MINI";
+    return "NORMAL";
+  }
+  // windup (frames the threat is telegraphed before impact). Floor keeps it
+  // >= worst-case turn time + margin -> always reactable (skill, not luck).
+  function windupFor(stage, type) {
+    var w = 72 - (stage - 1) * 4;
+    if (type === "MINI") w -= 8;
+    if (type === "BOSS") w -= 12;
+    return Math.max(28, w);
+  }
+  // spacing between successive threats (frames). Floor >= turn time so the
+  // player can always re-aim between consecutive hits.
+  function spacingFor(stage, type) {
+    var s = 92 - (stage - 1) * 5;
+    if (type === "MINI") s -= 12;
+    if (type === "BOSS") s -= 16;
+    return Math.max(32, s);
+  }
+  // parry arc (facing tolerance). Shrinks -> precision rises (not luck:
+  // a perfect player aims exactly, so always within any arc > 0).
+  function parryArcFor(stage, type) {
+    var a = 0.58 - (stage - 1) * 0.018;
+    if (type === "MINI") a -= 0.05;
+    if (type === "BOSS") a -= 0.08;
+    return Math.max(0.30, a);
+  }
+
+  var DIRS = 8;
+  function dirAngle(i) { return (i / DIRS) * TAU; }
+
+  var G = {
+    screen: "start",
+    gf: 0, tf: 0,                 // guard facing / target facing
+    guardW: GUARD_W, arcBonus: 0, shardMul: 1, shield: 0, scoreMul: 1,
+    perfWin: 7,
+    threats: [], parts: [],
+    score: 0, shards: 0, combo: 0, bestCombo: 0,
+    stage: 1, stageType: "NORMAL", waveInStage: 0,
+    spawnT: 0, seq: 0, lastDir: 0,
+    boss: { active: false, hp: 0, max: 0 },
+    keys: { x: 0, y: 0 }, shake: 0, overAt: 0, banner: "", bannerT: 0,
+    pendingUpg: null
+  };
+
+  function angNorm(a) { a %= TAU; if (a < 0) a += TAU; return a; }
+  function angDiff(a, b) {
+    var d = Math.abs(angNorm(a - b));
+    return d > Math.PI ? TAU - d : d;
+  }
+
+  function spawnThreat() {
+    var t = G.stageType;
+    // pick a direction; avoid repeating the exact same one twice in a row
+    var di;
+    do { di = Math.floor(Math.random() * DIRS); }
+    while (di === G.lastDir && Math.random() < 0.7);
+    G.lastDir = di;
+    G.threats.push({
+      dir: dirAngle(di), t: windupFor(G.stage, t),
+      arc: parryArcFor(G.stage, t), maxT: windupFor(G.stage, t),
+      resolved: false, type: t
+    });
+    G.seq++;
+  }
+
+  function configBanner() {
+    var t = G.stageType;
+    G.banner = (t === "BOSS" ? "👑 BOSS STAGE " : t === "MINI" ?
+      "⚔ MINI-BOSS " : "STAGE ") + G.stage;
+    G.bannerT = 80;
+  }
+
+  function startGame() {
+    G.screen = "playing";
+    G.gf = 0; G.tf = 0;
+    G.guardW = GUARD_W; G.arcBonus = 0; G.shardMul = 1; G.shield = 0;
+    G.scoreMul = 1; G.perfWin = 7;
+    G.threats = []; G.parts = [];
+    G.score = 0; G.shards = 0; G.combo = 0; G.bestCombo = 0;
+    G.stage = 1; G.stageType = "NORMAL"; G.waveInStage = 0;
+    G.spawnT = 0; G.seq = 0; G.lastDir = -1;
+    G.boss = { active: false, hp: 0, max: 0 };
+    G.shake = 0; G.banner = ""; G.bannerT = 0; G.pendingUpg = null;
+    configBanner();
+    spawnThreat();
+    paintHud();
+    hud.classList.remove("hidden");
+    startScreen.classList.add("hidden");
+    upgScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+  }
+
+  function paintHud() {
+    scoreEl.textContent = G.score;
+    var t = G.stageType === "BOSS" ? "👑 BOSS" :
+      G.stageType === "MINI" ? "⚔ MINI" : "STAGE";
+    metaEl.textContent = (best ? "BEST " + best + "  ·  " : "") +
+      t + " " + G.stage + "  ·  WAVE " + G.seq;
+    comboEl.textContent = G.combo >= 2 ? "COMBO x" + G.combo : "";
+  }
+
+  var POOL = [
+    { k: "gw", t: "민첩한 가드", d: "가드 회전 +14%", cost: 3,
+      ap: function () { G.guardW *= 1.14; } },
+    { k: "gw2", t: "초민첩 가드", d: "가드 회전 +26%", cost: 5,
+      ap: function () { G.guardW *= 1.26; } },
+    { k: "arc", t: "넓은 패링", d: "패링 각 +0.10", cost: 3,
+      ap: function () { G.arcBonus += 0.10; } },
+    { k: "perf", t: "정밀 타이밍", d: "PERFECT 창 +4f", cost: 3,
+      ap: function () { G.perfWin += 4; } },
+    { k: "shd", t: "샤드 증폭", d: "샤드 +50%", cost: 2,
+      ap: function () { G.shardMul *= 1.5; } },
+    { k: "shd2", t: "샤드 대증폭", d: "샤드 +100%", cost: 6,
+      ap: function () { G.shardMul *= 2; } },
+    { k: "sco", t: "점수 증폭", d: "점수 +30%", cost: 4,
+      ap: function () { G.scoreMul *= 1.3; } },
+    { k: "shield", t: "보호막 +1", d: "빗맞음 1회 무효", cost: 5,
+      ap: function () { G.shield += 1; } }
+  ];
+  function rollOffers() {
+    var bag = POOL.slice(), out = [];
+    for (var i = 0; i < 3 && bag.length; i++)
+      out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    return out;
+  }
+
+  function openUpgrades() {
+    G.screen = "upgrade";
+    upgTitle.textContent = "STAGE " + G.stage + " 클리어 — 강화  (◆ " +
+      G.shards + ")";
+    upgCards.innerHTML = "";
+    rollOffers().forEach(function (u) {
+      var c = document.createElement("div");
+      c.className = "upg";
+      c.innerHTML = "<b>" + u.t + "</b><br><span>" + u.d +
+        "</span><br><span>비용 ◆" + u.cost + "</span>";
+      c.onclick = function () {
+        if (G.shards < u.cost) return;
+        G.shards -= u.cost; u.ap(); resumeFromUpgrade();
+      };
+      upgCards.appendChild(c);
+    });
+    var skip = document.createElement("div");
+    skip.className = "upg";
+    skip.innerHTML = "<b>건너뛰기</b><br><span>샤드 보존</span>";
+    skip.onclick = resumeFromUpgrade;
+    upgCards.appendChild(skip);
+    hud.classList.add("hidden");
+    upgScreen.classList.remove("hidden");
+  }
+  function resumeFromUpgrade() {
+    upgScreen.classList.add("hidden");
+    hud.classList.remove("hidden");
+    G.screen = "playing";
+    enterStage(G.stage + 1);
+    paintHud();
+  }
+
+  function enterStage(s) {
+    G.stage = s; G.stageType = stageType(s); G.waveInStage = 0;
+    if (G.stageType === "BOSS")
+      G.boss = { active: true, hp: BOSS_HP, max: BOSS_HP };
+    else G.boss = { active: false, hp: 0, max: 0 };
+    configBanner();
+  }
+
+  function addParts(x, y, color, n) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * TAU, s = 1 + Math.random() * 4;
+      G.parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 1, color: color });
+    }
+  }
+  function setBanner(txt, fr) { G.banner = txt; G.bannerT = fr || 70; }
+
+  function gameOver() {
+    G.screen = "over";
+    G.overAt = Date.now();
+    G.shake = 22;
+    addParts(CX, CY, "#ff5d5d", 48);
+    var isNew = G.score > best;
+    if (isNew) {
+      best = G.score;
+      try { window.localStorage.setItem("parry_best", String(best)); } catch (e) {}
+    }
+    setTimeout(function () {
+      if (G.screen !== "over") return;
+      finalScore.textContent = G.score;
+      bestMsg.textContent = (isNew ? "🎉 신기록!  " : "BEST " + best + "  ") +
+        "· STAGE " + G.stage + " · 최고 COMBO x" + G.bestCombo;
+      hud.classList.add("hidden");
+      overScreen.classList.remove("hidden");
+    }, 650);
+  }
+
+  function handleTap() {
+    if (G.screen === "start") startGame();
+    else if (G.screen === "over") { if (Date.now() - G.overAt > 700) startGame(); }
+  }
+  window.addEventListener("pointerdown", function (e) {
+    if (e.target && e.target.classList &&
+        (e.target.classList.contains("home") ||
+         e.target.classList.contains("upg"))) return;
+    e.preventDefault();
+    if (G.screen === "playing")
+      G.tf = angNorm(Math.atan2(e.clientY - CY, e.clientX - CX));
+    else handleTap();
+  }, { passive: false });
+  window.addEventListener("pointermove", function (e) {
+    if (G.screen === "playing" && e.buttons)
+      G.tf = angNorm(Math.atan2(e.clientY - CY, e.clientX - CX));
+  });
+  function keyDir() {
+    if (G.keys.x || G.keys.y)
+      G.tf = angNorm(Math.atan2(G.keys.y, G.keys.x));
+  }
+  window.addEventListener("keydown", function (e) {
+    var k = e.code;
+    if (k === "ArrowLeft" || k === "KeyA") G.keys.x = -1;
+    else if (k === "ArrowRight" || k === "KeyD") G.keys.x = 1;
+    else if (k === "ArrowUp" || k === "KeyW") G.keys.y = -1;
+    else if (k === "ArrowDown" || k === "KeyS") G.keys.y = 1;
+    else if (k === "Space" || k === "Enter") { e.preventDefault(); handleTap(); }
+    keyDir();
+  });
+  window.addEventListener("keyup", function (e) {
+    var k = e.code;
+    if (((k === "ArrowLeft" || k === "KeyA") && G.keys.x < 0) ||
+        ((k === "ArrowRight" || k === "KeyD") && G.keys.x > 0)) G.keys.x = 0;
+    if (((k === "ArrowUp" || k === "KeyW") && G.keys.y < 0) ||
+        ((k === "ArrowDown" || k === "KeyS") && G.keys.y > 0)) G.keys.y = 0;
+  });
+
+  function update() {
+    if (G.screen === "playing") {
+      // rotate guard toward target at capped speed
+      var d = angNorm(G.tf - G.gf);
+      if (d > Math.PI) d -= TAU;
+      if (Math.abs(d) <= G.guardW) G.gf = G.tf;
+      else G.gf = angNorm(G.gf + (d > 0 ? G.guardW : -G.guardW));
+
+      G.spawnT++;
+      if (G.spawnT >= spacingFor(G.stage, G.stageType)) {
+        G.spawnT = 0; spawnThreat();
+      }
+
+      var keep = [];
+      for (var i = 0; i < G.threats.length; i++) {
+        var th = G.threats[i];
+        th.t--;
+        if (!th.resolved && th.t <= 0) {
+          th.resolved = true;
+          var off = angDiff(G.gf, th.dir);
+          if (off <= th.arc + G.arcBonus) {
+            // parried
+            var perfect = th.t > -G.perfWin && off < (th.arc + G.arcBonus) * 0.4;
+            G.score += Math.round((perfect ? 2 : 1) * G.scoreMul);
+            if (perfect) {
+              G.combo++; if (G.combo > G.bestCombo) G.bestCombo = G.combo;
+            } else G.combo = 0;
+            var gain = Math.round((1 + (th.type === "BOSS" ? 2 :
+              th.type === "MINI" ? 1 : 0)) * G.shardMul);
+            if (Math.random() < LUCK_RATE) gain += 2;     // ~5% bonus
+            G.shards += Math.max(1, gain);
+            addParts(CX + Math.cos(th.dir) * RING,
+              CY + Math.sin(th.dir) * RING,
+              perfect ? "#3fb950" : "#58a6ff", perfect ? 20 : 12);
+            G.shake = Math.max(G.shake, perfect ? 6 : 3);
+            G.waveInStage++;
+
+            if (G.boss.active) {
+              G.boss.hp--;
+              if (G.boss.hp <= 0) {
+                G.boss.active = false; G.score += 15;
+                addParts(CX, CY, "#3fb950", 56);
+                G.shake = Math.max(G.shake, 14);
+                setBanner("BOSS CLEAR  +15", 90);
+                G.pendingUpg = true;
+              }
+            } else if (G.waveInStage >= WAVES_PER_STAGE) {
+              G.pendingUpg = true;
+            }
+            paintHud();
+          } else {
+            // mistimed / wrong facing
+            if (G.shield > 0) {
+              G.shield--; addParts(CX, CY, "#58a6ff", 24);
+              G.shake = Math.max(G.shake, 10); setBanner("SHIELD!", 45);
+            } else { gameOver(); return; }
+          }
+        }
+        if (th.t > -10) keep.push(th);
+      }
+      G.threats = keep;
+
+      if (G.pendingUpg && !G.boss.active) { G.pendingUpg = null; openUpgrades(); }
+      if (G.bannerT > 0) G.bannerT--;
+    }
+
+    var pk = [];
+    for (var q = 0; q < G.parts.length; q++) {
+      var p = G.parts[q];
+      p.x += p.vx; p.y += p.vy; p.vx *= 0.95; p.vy *= 0.95; p.life -= 0.025;
+      if (p.life > 0) pk.push(p);
+    }
+    G.parts = pk;
+    if (G.shake > 0.4) G.shake *= 0.86; else G.shake = 0;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (G.shake > 0.4)
+      ctx.translate((Math.random() - .5) * G.shake * 0.6,
+                    (Math.random() - .5) * G.shake * 0.6);
+
+    if (G.screen === "playing" || G.screen === "over" || G.screen === "upgrade") {
+      // base ring
+      ctx.beginPath(); ctx.arc(CX, CY, RING, 0, TAU);
+      ctx.strokeStyle = "rgba(139,148,158,0.18)"; ctx.lineWidth = 2; ctx.stroke();
+
+      // threats: a marker travelling in from the edge along its direction
+      for (var i = 0; i < G.threats.length; i++) {
+        var th = G.threats[i];
+        if (th.resolved) continue;
+        var prog = 1 - Math.max(0, th.t) / th.maxT;       // 0..1 -> impact
+        var rad = RING + 140 * (1 - prog);
+        var x = CX + Math.cos(th.dir) * rad,
+            y = CY + Math.sin(th.dir) * rad;
+        var col = th.type === "BOSS" ? "#e3b341" :
+          th.type === "MINI" ? "#a371f7" : "#f0883e";
+        // telegraph line
+        ctx.strokeStyle = "rgba(240,136,62,0.25)"; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(CX + Math.cos(th.dir) * RING, CY + Math.sin(th.dir) * RING);
+        ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, TAU); ctx.fill();
+        // impact target on the ring
+        ctx.strokeStyle = col; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(CX, CY, RING, th.dir - 0.18, th.dir + 0.18);
+        ctx.stroke();
+      }
+
+      // guard arc
+      var arc = (G.threats[0] ? G.threats[0].arc : 0.5) + G.arcBonus;
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.arc(CX, CY, RING, G.gf - arc, G.gf + arc);
+      ctx.stroke();
+      // core
+      ctx.fillStyle = "#58a6ff";
+      ctx.beginPath(); ctx.arc(CX, CY, 13, 0, TAU); ctx.fill();
+
+      if (G.boss.active) {
+        var bw = Math.min(W - 80, 380), bx = (W - bw) / 2;
+        ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(bx, 66, bw, 12);
+        ctx.fillStyle = "#e3b341";
+        ctx.fillRect(bx, 66, bw * (G.boss.hp / G.boss.max), 12);
+      }
+      if (G.bannerT > 0) {
+        ctx.globalAlpha = Math.min(1, G.bannerT / 26);
+        ctx.fillStyle = "#e6edf3";
+        ctx.font = "700 30px -apple-system, Segoe UI, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(G.banner, W / 2, H * 0.30);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    for (var q = 0; q < G.parts.length; q++) {
+      var p = G.parts[q];
+      ctx.globalAlpha = p.life > 0 ? p.life : 0;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3 * p.life + 1, 0, TAU);
+      ctx.fillStyle = p.color; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function loop() { update(); draw(); window.requestAnimationFrame(loop); }
+
+  window.__PARRY__ = {
+    G: G, update: update, startGame: startGame, handleTap: handleTap,
+    resumeUpgrade: resumeFromUpgrade, enterStage: enterStage,
+    stageType: stageType, windupFor: windupFor, spacingFor: spacingFor,
+    parryArcFor: parryArcFor, turnTime: turnTime, angDiff: angDiff,
+    angNorm: angNorm, rollOffers: rollOffers, POOL: POOL,
+    consts: { GUARD_W: GUARD_W, WAVES_PER_STAGE: WAVES_PER_STAGE,
+      BOSS_HP: BOSS_HP, LUCK_RATE: LUCK_RATE, DIRS: DIRS }
+  };
+
+  loop();
+})();
+</script>
+</body>
+</html>
